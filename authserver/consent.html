@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consent</title>
+</head>
+<body>
+  <form>
+  {{range $scope := .Scopes }}
+    <label for="$scope">$scope</label>
+    <input type="checkbox" name="scope[]" value="$scope">
+  {{end}}
+  </form>
+</body>
+</html>

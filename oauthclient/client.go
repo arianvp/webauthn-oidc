@@ -2,7 +2,6 @@ package oauthclient
 
 import (
 	"embed"
-	"log"
 	"net/http"
 
 	"github.com/hashicorp/cap/oidc"
@@ -24,7 +23,7 @@ type Client struct {
 	redirectURI string
 }
 
-func New(issuer string, clientID string, redirectURI string) Client {
+func New(issuer string, clientID string, redirectURI string) (*Client, error) {
 	supportedAlgs := []oidc.Alg{oidc.ES256, oidc.RS256}
 
 	allowedRedirectURIs := []string{redirectURI}
@@ -34,12 +33,12 @@ func New(issuer string, clientID string, redirectURI string) Client {
 		supportedAlgs, allowedRedirectURIs,
 	)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	provider, err := oidc.NewProvider(oidcConfig)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	client := Client{
@@ -50,5 +49,5 @@ func New(issuer string, clientID string, redirectURI string) Client {
 
 	client.Handle("/", http.HandlerFunc(client.ServeIndex))
 	client.Handle("/callback", http.HandlerFunc(client.ServeCallback))
-	return client
+	return &client, nil
 }

@@ -1,23 +1,31 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 
+	"github.com/arianvp/webauthn-oidc/authserver"
 	"github.com/arianvp/webauthn-oidc/oauthclient"
+	"github.com/arianvp/webauthn-oidc/util"
 )
 
 func main() {
+	serverPort := "8080"
+	clientPort := "8081"
+	serverOrigin := "http://localhost:" + serverPort
+	clientOrigin := "http://localhost:" + clientPort
+	redirectURI := clientOrigin + "/callback"
 
-	clientOrigin := "client.localhost:8080"
-	redirectURI := fmt.Sprintf("http://%s/callback", clientOrigin)
+	clientID := util.RegisterClient(redirectURI)
+	// clientID := "0oa1zzg4kiliCsqqW5d7"
+	//serverOrigin := "https://dev-19105531.okta.com"
 
-	clientID := "0oa1zzg4kiliCsqqW5d7"
+	authserver := authserver.New(serverOrigin)
+	go http.ListenAndServe("[::]:"+serverPort, &authserver)
 
-	authServer := "https://dev-19105531.okta.com"
-
-	oauthclient := oauthclient.New(authServer, clientID, redirectURI)
-	http.Handle("client.localhost/", &oauthclient)
-	log.Fatal(http.ListenAndServe("[::]:8080", nil))
+	oauthclient, err := oauthclient.New(serverOrigin, clientID, redirectURI)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Fatal(http.ListenAndServe("[::]:"+clientPort, oauthclient))
 }

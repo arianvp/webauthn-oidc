@@ -25,7 +25,11 @@ func (client *Client) success(state string, t oidc.Token, rw http.ResponseWriter
 }
 
 func (client *Client) failure(state string, r *callback.AuthenErrorResponse, e error, rw http.ResponseWriter, req *http.Request) {
-	http.Error(rw, e.Error(), http.StatusBadRequest)
+	if e != nil {
+		http.Error(rw, e.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Error(rw, r.Description, http.StatusBadRequest)
 }
 
 func (client *Client) ServeCallback(rw http.ResponseWriter, req *http.Request) {
