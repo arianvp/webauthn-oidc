@@ -7,5 +7,5 @@ require (
 	github.com/duo-labs/webauthn.io v0.0.0-20200929144140-c031a3e0f95d
 	github.com/golang-jwt/jwt/v4 v4.0.0
 	github.com/gorilla/sessions v1.2.1 // indirect
-	golang.org/x/crypto v0.0.0-20191117063200-497ca9f6d64f
+	github.com/hashicorp/cap v0.1.1
 )
