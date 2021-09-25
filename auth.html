@@ -86,8 +86,9 @@
           clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
         },
       });
+      console.log(credential.id)
       target.elements["public_key_credential"].value = publicKeyCredential
-      target.submit()
+      //target.submit()
     };
   </script>
 </body>

@@ -20,8 +20,11 @@ func main() {
 	// clientID := "0oa1zzg4kiliCsqqW5d7"
 	//serverOrigin := "https://dev-19105531.okta.com"
 
-	authserver := authserver.New(serverOrigin)
-	go http.ListenAndServe("[::]:"+serverPort, &authserver)
+	authserver, err := authserver.New(serverOrigin)
+	if err != nil {
+		log.Fatal(err)
+	}
+	go http.ListenAndServe("[::]:"+serverPort, authserver)
 
 	oauthclient, err := oauthclient.New(serverOrigin, clientID, redirectURI)
 	if err != nil {

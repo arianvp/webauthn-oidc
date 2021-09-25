@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=
+  , initial-scale=1.0">
+  <title>Log in</title>
+</head>
+
+<body>
+  <form name="login" method="POST">
+    <fieldset>
+      <legend>Log in with public key credential</legend>
+      <div>
+        <label for="attestation_response">Attestation</label>
+        <input readonly name="attestation_response" size="256" type="text">
+      </div>
+      <div>
+        <input type="submit" value="Login">
+      </div>
+    </fieldset>
+    <input type="hidden" name="assertion_response">
+  </form>
+  <form name="register" method="POST">
+    <input type="hidden" name="attestation_response">
+    <fieldset>
+      <legend>Generate a new public key credential.</legend>
+      <input type="submit" value="Register">
+    </fieldset>
+  </form>
+  <script>
+    function base64urlToBuffer(baseurl64String) {
+      // Base64url to Base64
+      const padding = "==".slice(0, (4 - (baseurl64String.length % 4)) % 4);
+      const base64String =
+        baseurl64String.replace(/-/g, "+").replace(/_/g, "/") + padding;
+
+      // Base64 to binary string
+      const str = atob(base64String);
+
+      // Binary string to buffer
+      const buffer = new ArrayBuffer(str.length);
+      const byteView = new Uint8Array(buffer);
+      for (let i = 0; i < str.length; i++) {
+        byteView[i] = str.charCodeAt(i);
+      }
+      return buffer;
+    }
+
+    function bufferToBase64url(buffer) {
+      // Buffer to binary string
+      const byteView = new Uint8Array(buffer);
+      let str = "";
+      for (const charCode of byteView) {
+        str += String.fromCharCode(charCode);
+      }
+
+      // Binary string to base64
+      const base64String = btoa(str);
+
+      // Base64 to base64url
+      // We assume that the base64url string is well-formed.
+      const base64urlString = base64String
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=/g, "");
+      return base64urlString;
+    }
+
+    const loginForm = document.forms.namedItem("login");
+
+    document.forms.namedItem("register").onsubmit = async (e) => {
+      e.preventDefault();
+      let target = e.target;
+      let challenge = "{{ .Challenge }}";
+      let credential = await navigator.credentials.create({
+        publicKey: {
+          challenge: base64urlToBuffer(challenge),
+          rp: {
+            name: "Webauthn OIDC",
+          },
+          // There user id doesn't matter for our usecase however we could put some identifying information about the OIDC audience in here
+          user: {
+            id: base64urlToBuffer("zczEAX64EcKL703DK8jkTaoX87gaKxQUwSOCdFIHbc4"), // TODO more entropy
+            name: "Arian",
+            displayName: "Arian"
+          },
+          pubKeyCredParams: [{
+            alg: -7,
+            type: "public-key"
+          }]
+        }
+      });
+      // make sure follow-up logins are easy
+
+      let attestationResponse = JSON.stringify({
+        id: credential.id,
+        rawId: bufferToBase64url(credential.rawId),
+        type: credential.type,
+        response: {
+          attestationObject: bufferToBase64url(credential.response.attestationObject),
+          clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
+        },
+      });
+      target.elements["attestation_response"].value = attestationResponse
+      localStorage.setItem("attestation_response", attestationResponse);
+
+      console.log(credential.id.length)
+      loginForm.elements["attestation_response"].value = localStorage.getItem("attestation_response")
+      //target.submit()
+    };
+
+    loginForm.elements["attestation_response"].value = localStorage.getItem("attestation_response")
+
+    loginForm.onsubmit = async (e) => {
+      e.preventDefault();
+      let target = e.target;
+      let challenge = "{{ .Challenge }}";
+      let attestationResponse = loginForm.elements["attestation_response"].value;
+      console.log(attestationResponse)
+      let credential = await navigator.credentials.get({
+        publicKey: {
+          challenge: base64urlToBuffer(challenge),
+          allowCredentials: [{
+            type: "public-key",
+            id: base64urlToBuffer(JSON.parse(attestationResponse).id)
+          }]
+        }
+      });
+
+      console.log(credential.response)
+      let assertionResponse = JSON.stringify({
+        id: credential.id,
+        rawId: bufferToBase64url(credential.rawId),
+        type: credential.type,
+        response: {
+          signature: bufferToBase64url(credential.response.signaure),
+          clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
+          authenticatorData: bufferToBase64url(credential.response.authenticatorData),
+        },
+      });
+      target.elements["assertion_response"].value = assertionResponse;
+      target.submit()
+    };
+  </script>
+</body>
+
+</html>

@@ -1,8 +1,6 @@
 package authserver
 
 import (
-	"io"
-	"log"
 	"net/http"
 	"net/url"
 
@@ -41,7 +39,7 @@ func TokenRequestFromValues(values url.Values) TokenRequest {
 	}
 }
 
-func (server *AuthorisationServer) handleToken(w http.ResponseWriter, req *http.Request) {
+func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -63,7 +61,7 @@ func (server *AuthorisationServer) handleToken(w http.ResponseWriter, req *http.
 		return
 	}
 	w.Header().Add("Content-Type", "application/json")
-	if err := json.NewEncoder(io.MultiWriter(log.Writer(), w)).Encode(tokenResponse); err != nil {
+	if err := json.NewEncoder(w).Encode(tokenResponse); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

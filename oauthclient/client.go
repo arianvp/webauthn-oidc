@@ -24,7 +24,7 @@ type Client struct {
 }
 
 func New(issuer string, clientID string, redirectURI string) (*Client, error) {
-	supportedAlgs := []oidc.Alg{oidc.ES256, oidc.RS256}
+	supportedAlgs := []oidc.Alg{oidc.ES256, oidc.EdDSA, oidc.RS256}
 
 	allowedRedirectURIs := []string{redirectURI}
 

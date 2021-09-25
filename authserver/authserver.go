@@ -5,6 +5,8 @@ import (
 	"embed"
 	"net/http"
 
+	"github.com/duo-labs/webauthn.io/session"
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/hashicorp/cap/oidc"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/json"
@@ -22,19 +24,20 @@ const (
 )
 
 type OpenidConfiguration struct {
-	Issuer                 string     `json:"issuer"`
-	AuthEndpoint           string     `json:"authorization_endpoint"`
-	TokenEndpoint          string     `json:"token_endpoint"`
-	JWKSURI                string     `json:"jwks_uri"`
-	UserinfoEndpoint       string     `json:"userinfo_endpoint,omitempty"`
-	SupportedAlgs          []oidc.Alg `json:"id_token_signing_alg_values_supported"`
-	SupportedScopes        []string   `json:"scopes_supported"`
-	SubjectTypesSupported  []string   `json:"subject_types_supported"`
-	ResponseTypesSupported []string   `json:"response_types_supported"`
-	GrantTypesSupported    []string   `json:"grant_types_supported"`
+	Issuer                 string                          `json:"issuer"`
+	AuthEndpoint           string                          `json:"authorization_endpoint"`
+	TokenEndpoint          string                          `json:"token_endpoint"`
+	JWKSURI                string                          `json:"jwks_uri"`
+	UserinfoEndpoint       string                          `json:"userinfo_endpoint,omitempty"`
+	SupportedAlgs          []oidc.Alg                      `json:"id_token_signing_alg_values_supported"`
+	SupportedScopes        []string                        `json:"scopes_supported"`
+	SubjectTypesSupported  []string                        `json:"subject_types_supported"`
+	ResponseTypesSupported []string                        `json:"response_types_supported"`
+	GrantTypesSupported    []string                        `json:"grant_types_supported"`
+	ACRValuesSupported     []protocol.ConveyancePreference `json:"acr_values_supported"`
 }
 
-type AuthorisationServer struct {
+type AuthorizationServer struct {
 	http.ServeMux
 
 	origin string
@@ -46,32 +49,40 @@ type AuthorisationServer struct {
 	privateKey *ecdsa.PrivateKey
 
 	config *OpenidConfiguration
+
+	sessionStore *session.Store
 }
 
 // TODO because we are dynamic we must support implict and code grant
-func New(origin string) AuthorisationServer {
-	server := AuthorisationServer{}
+func New(origin string) (*AuthorizationServer, error) {
+	server := AuthorizationServer{}
 	server.codeCache = newCodeCache()
+	sessionStore, err := session.NewStore()
+	if err != nil {
+		return nil, err
+	}
+	server.sessionStore = sessionStore
 	server.config = &OpenidConfiguration{
 		Issuer:                 origin,
 		AuthEndpoint:           origin + authorize,
 		TokenEndpoint:          origin + token,
 		JWKSURI:                origin + wellKnownJwks,
 		UserinfoEndpoint:       origin + userinfo,
-		SupportedAlgs:          []oidc.Alg{oidc.ES256},
+		SupportedAlgs:          []oidc.Alg{oidc.EdDSA, oidc.ES256},
 		SupportedScopes:        []string{"openid"},
 		SubjectTypesSupported:  []string{"public"},
 		ResponseTypesSupported: []string{"code"},
 	}
+
 	server.Handle(openidConfiguration, http.HandlerFunc(server.handleOpenidConfiguration))
 	server.Handle(authorize, http.HandlerFunc(server.handleAuthorize))
 	server.Handle(token, http.HandlerFunc(server.handleToken))
 	server.Handle(wellKnownJwks, http.HandlerFunc(server.handleWellknownJwks))
 
-	return server
+	return &server, nil
 }
 
-func (server *AuthorisationServer) handleOpenidConfiguration(w http.ResponseWriter, req *http.Request) {
+func (server *AuthorizationServer) handleOpenidConfiguration(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -83,7 +94,7 @@ func (server *AuthorisationServer) handleOpenidConfiguration(w http.ResponseWrit
 	}
 }
 
-func (server *AuthorisationServer) handleWellknownJwks(w http.ResponseWriter, req *http.Request) {
+func (server *AuthorizationServer) handleWellknownJwks(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return

@@ -1,10 +1,15 @@
 package authserver
 
 import (
+	"log"
 	"net/http"
 	"net/url"
+	"strings"
+	"text/template"
 
 	"github.com/arianvp/webauthn-oidc/util"
+	"github.com/duo-labs/webauthn/protocol"
+	"github.com/duo-labs/webauthn/webauthn"
 	"github.com/ory/fosite"
 )
 
@@ -17,6 +22,11 @@ type AuthorizeRequest struct {
 	CodeChallengeMethod string
 	CodeChallenge       string
 	Nonce               string
+	AttestationResponse string
+	AssertionResponse   string
+}
+
+type AuthorizeParams struct {
 }
 
 func AuthorizeRequestFromValues(values url.Values) AuthorizeRequest {
@@ -29,6 +39,8 @@ func AuthorizeRequestFromValues(values url.Values) AuthorizeRequest {
 		CodeChallengeMethod: values.Get("code_challenge_method"),
 		CodeChallenge:       values.Get("code_challenge"),
 		Nonce:               values.Get("nonce"),
+		AttestationResponse: values.Get("attestation_response"),
+		AssertionResponse:   values.Get("assertion_response"),
 	}
 }
 
@@ -58,8 +70,12 @@ func (response *AuthorizeResponse) Respond(w http.ResponseWriter, req *http.Requ
 	http.Redirect(w, req, response.RedirectURI.String(), http.StatusFound)
 }
 
-func (server *AuthorisationServer) handleAuthorize(w http.ResponseWriter, req *http.Request) {
-	authorizeRequest := AuthorizeRequestFromValues(req.URL.Query())
+func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *http.Request) {
+	if err := req.ParseForm(); err != nil {
+		http.Error(w, "invalid data", http.StatusBadRequest)
+		return
+	}
+	authorizeRequest := AuthorizeRequestFromValues(req.Form)
 	authorizeResponse := AuthorizeResponse{
 		State: authorizeRequest.State,
 	}
@@ -88,17 +104,82 @@ func (server *AuthorisationServer) handleAuthorize(w http.ResponseWriter, req *h
 		return
 	}
 
-	code, err := server.codeCache.newCode(&state{
-		codeChallenge:       authorizeRequest.CodeChallenge,
-		codeChallengeMethod: authorizeRequest.CodeChallengeMethod,
-		redirectURI:         authorizeRequest.RedirectURI,
-		clientID:            authorizeRequest.ClientID,
-		nonce:               authorizeRequest.Nonce,
-	})
-	if err != nil {
-		authorizeResponse.Error = fosite.ErrServerError
+	switch req.Method {
+	case http.MethodGet:
+		challenge, err := protocol.CreateChallenge()
+		if err != nil {
+			authorizeResponse.Error = fosite.ErrServerError
+			authorizeResponse.Respond(w, req)
+		}
+		err = server.sessionStore.SaveWebauthnSession("assertion", &webauthn.SessionData{
+			Challenge: challenge.String(),
+		}, req, w)
+		if err != nil {
+			log.Println(err)
+			authorizeResponse.Error = fosite.ErrServerError
+			authorizeResponse.Respond(w, req)
+		}
+
+		template := template.New("auth.html")
+		template, err = template.ParseFS(content, "auth.html")
+		if err != nil {
+			panic(err)
+		}
+
+		if err := template.Execute(w, struct{ Challenge protocol.Challenge }{challenge}); err != nil {
+			panic(err)
+		}
+
+	case http.MethodPost:
+		sessionData, err := server.sessionStore.GetWebauthnSession("assertion", req)
+		if err != nil {
+			authorizeResponse.Error = fosite.ErrInvalidRequest
+			authorizeResponse.Respond(w, req)
+			return
+		}
+
+		if authorizeRequest.AssertionResponse == "" {
+			authorizeResponse.Error = fosite.ErrInvalidRequest
+			authorizeResponse.Respond(w, req)
+			return
+		}
+
+		parsedAttestationResponse, err := protocol.ParseCredentialCreationResponseBody(strings.NewReader(authorizeRequest.AttestationResponse))
+		if err != nil {
+			authorizeResponse.Error = fosite.ErrInvalidRequest
+			authorizeResponse.Respond(w, req)
+			return
+		}
+		publicKey := parsedAttestationResponse.Response.AttestationObject.AuthData.AttData.CredentialPublicKey
+		parsedResponse, err := protocol.ParseCredentialRequestResponseBody(strings.NewReader(authorizeRequest.AssertionResponse))
+		if err != nil {
+			authorizeResponse.Error = fosite.ErrInvalidRequest
+			authorizeResponse.Respond(w, req)
+			return
+		}
+
+		if err := parsedResponse.Verify(sessionData.Challenge, "localhost", "http://localhost:8080", false, publicKey); err != nil {
+			log.Println(err)
+			authorizeResponse.Error = fosite.ErrRequestUnauthorized
+			authorizeResponse.Respond(w, req)
+			return
+		}
+		// TODO add the auth data
+		code, err := server.codeCache.newCode(&state{
+			codeChallenge:       authorizeRequest.CodeChallenge,
+			codeChallengeMethod: authorizeRequest.CodeChallengeMethod,
+			redirectURI:         authorizeRequest.RedirectURI,
+			clientID:            authorizeRequest.ClientID,
+			nonce:               authorizeRequest.Nonce,
+		})
+		if err != nil {
+			authorizeResponse.Error = fosite.ErrServerError
+			authorizeResponse.Respond(w, req)
+		}
+		authorizeResponse.Code = code
 		authorizeResponse.Respond(w, req)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
 	}
-	authorizeResponse.Code = code
-	authorizeResponse.Respond(w, req)
 }
