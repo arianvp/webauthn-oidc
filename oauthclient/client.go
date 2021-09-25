@@ -2,11 +2,9 @@ package oauthclient
 
 import (
 	"embed"
-	"fmt"
 	"log"
 	"net/http"
 
-	"github.com/arianvp/webauthn-oidc/util"
 	"github.com/hashicorp/cap/oidc"
 )
 
@@ -18,19 +16,16 @@ type Client struct {
 
 	oidcProvider *oidc.Provider
 
-	callback OauthCallback
+	callback http.HandlerFunc
 	index    http.HandlerFunc
+
+	cache *requestCache
 
 	redirectURI string
 }
 
-func New(issuer string, origin string) Client {
-	supportedAlgs := []oidc.Alg{oidc.ES256}
-
-	// Client IDs are the hash of the RedirectURI for webauthn-oidc
-	redirectURI := fmt.Sprintf("http://%s/callback", origin)
-
-	clientID := util.RegisterClient(redirectURI)
+func New(issuer string, clientID string, redirectURI string) Client {
+	supportedAlgs := []oidc.Alg{oidc.ES256, oidc.RS256}
 
 	allowedRedirectURIs := []string{redirectURI}
 
@@ -38,6 +33,9 @@ func New(issuer string, origin string) Client {
 		issuer, clientID, oidc.ClientSecret(""),
 		supportedAlgs, allowedRedirectURIs,
 	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	provider, err := oidc.NewProvider(oidcConfig)
 	if err != nil {
@@ -47,9 +45,10 @@ func New(issuer string, origin string) Client {
 	client := Client{
 		oidcProvider: provider,
 		redirectURI:  redirectURI,
+		cache:        newRequestCache(),
 	}
 
 	client.Handle("/", http.HandlerFunc(client.ServeIndex))
-	client.Handle("/callback", &client.callback)
+	client.Handle("/callback", http.HandlerFunc(client.ServeCallback))
 	return client
 }

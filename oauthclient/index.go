@@ -28,6 +28,7 @@ func (client *Client) ServeIndex(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	request, err := oidc.NewRequest(time.Minute, client.redirectURI, oidc.WithPKCE(codeVerifier))
+	client.cache.Add(request)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 		return
