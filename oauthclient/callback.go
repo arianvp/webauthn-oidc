@@ -2,7 +2,6 @@ package oauthclient
 
 import (
 	"encoding/json"
-	"html/template"
 	"net/http"
 
 	"github.com/hashicorp/cap/oidc"
@@ -14,15 +13,9 @@ type callbackParams struct {
 }
 
 func (client *Client) success(state string, t oidc.Token, rw http.ResponseWriter, req *http.Request) {
-
-	template := template.New("callback.html")
-	template, err := template.ParseFS(content, "callback.html")
-	if err != nil {
-		panic(err)
-	}
 	var claims map[string]interface{}
 	if err := t.IDToken().Claims(&claims); err != nil {
-		// handle error
+		http.Error(rw, err.Error(), http.StatusBadRequest)
 	}
 
 	rw.Header().Set("Content-Type", "application/json")
