@@ -1,4 +1,4 @@
-package authserver
+package authserverp
 
 import (
 	"crypto/ecdsa"
