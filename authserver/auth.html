@@ -10,25 +10,46 @@
 </head>
 
 <body>
+  <form name="register" method="POST">
+    <input type="hidden" name="attestation_response">
+    <fieldset>
+      <legend>Generate a new public key credential. The credential will be saved for future sessions</legend>
+      <input type="checkbox" name="verification_required" id="verification_required">
+      <label for="verification_required">Require user verification</label>
+      <br />
+      <input type="checkbox" name="presence_required" id="presence_required">
+      <label for="presence_required">Require user presence</label>
+      <br />
+      <label for="attestation">Attestation conveyance preference:</label>
+      <select name="attestation" id="attestation">
+        <option value="none">None</option>
+        <option value="direct">Direct</option>
+        <option value="indirect">Indirect</option>
+      </select>
+      <br />
+      <input type="submit" value="Generate">
+    </fieldset>
+  </form>
   <form name="login" method="POST">
+    <fieldset>
+      <legend>An application wants to access the following data on your behalf:</legend>
+      <input checked type="checkbox" name="openid" id="openid">
+      <label for="openid">Access User Profile</label>
+      <!-- checked based on acr_values -->
+      <input type="checkbox" name="attestation" id="attestation">
+      <label for="attestation">Access attestation information</label>
+    </fieldset>
     <fieldset>
       <legend>Log in with public key credential</legend>
       <div>
-        <label for="attestation_response">Attestation</label>
-        <input readonly name="attestation_response" size="256" type="text">
+        <textarea readonly name="attestation_response" type="text"></textarea>
       </div>
       <div>
+        <input name="rest" type="reset">
         <input type="submit" value="Login">
       </div>
     </fieldset>
     <input type="hidden" name="assertion_response">
-  </form>
-  <form name="register" method="POST">
-    <input type="hidden" name="attestation_response">
-    <fieldset>
-      <legend>Generate a new public key credential.</legend>
-      <input type="submit" value="Register">
-    </fieldset>
   </form>
   <script>
     function base64urlToBuffer(baseurl64String) {
@@ -114,12 +135,14 @@
 
     loginForm.elements["attestation_response"].value = localStorage.getItem("attestation_response")
 
+    loginForm.onreset = async (e) => {
+      localStorage.removeItem("attestation_response");
+    }
     loginForm.onsubmit = async (e) => {
       e.preventDefault();
       let target = e.target;
       let challenge = "{{ .Challenge }}";
       let attestationResponse = loginForm.elements["attestation_response"].value;
-      console.log(attestationResponse)
       let credential = await navigator.credentials.get({
         publicKey: {
           challenge: base64urlToBuffer(challenge),
@@ -129,8 +152,6 @@
           }]
         }
       });
-
-      console.log(credential.response)
       let assertionResponse = JSON.stringify({
         id: credential.id,
         rawId: bufferToBase64url(credential.rawId),
