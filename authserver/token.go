@@ -120,8 +120,11 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	now := time.Now()
 
 	hasher := sha256.New()
+	log.Printf("credential.ID: %s", state.credential.ID)
 	hasher.Write(state.credential.ID)
+	log.Printf("credential.PublicKey: %s", state.credential.PublicKey)
 	hasher.Write(state.credential.PublicKey)
+	log.Printf("credential.ClientID: %s", state.clientID)
 	hasher.Write([]byte(state.clientID))
 	// NOTE: only taking 160 bits makes the subject a bit more readable while still
 	// being plenty collision resistant
