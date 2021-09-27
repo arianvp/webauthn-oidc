@@ -129,6 +129,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	// NOTE: only taking 160 bits makes the subject a bit more readable while still
 	// being plenty collision resistant
 	subject := base64.RawURLEncoding.EncodeToString(hasher.Sum(nil)[:20])
+	log.Printf("Subject: %s", subject)
 
 	rawJTI := make([]byte, 32)
 	if _, err := rand.Read(rawJTI); err != nil {
