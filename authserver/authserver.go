@@ -88,7 +88,7 @@ func New(origin string) (*AuthorizationServer, error) {
 		UserinfoEndpoint:       origin + userinfo,
 		SupportedAlgs:          []oidc.Alg{oidc.EdDSA, oidc.ES256},
 		SupportedScopes:        []string{"openid"},
-		SubjectTypesSupported:  []string{"public"},
+		SubjectTypesSupported:  []string{"pairwise"}, // the subject is the hash of credential_id+public_key+origin
 		ResponseTypesSupported: []string{"code"},
 	}
 

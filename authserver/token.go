@@ -37,10 +37,21 @@ type TokenResponse struct {
 	ErrorDescription string `json:"error_description,omitempty"`
 }
 
+type AMR string
+
+const (
+	HardwareKey AMR = "hwk"
+	SoftwareKey AMR = "swk"
+	PIN         AMR = "pin"
+	Fingerprint AMR = "fpt"
+	MultiFactor AMR = "mfa"
+)
+
 type OpenIDClaims struct {
 	Nonce  string `json:"nonce"`
 	AtHash string `json:"at_hash"`
 	CHash  string `json:"c_hash"`
+	AMR    []AMR  `json:"amr"`
 }
 
 func TokenRequestFromValues(values url.Values) TokenRequest {
@@ -111,7 +122,10 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	hasher := sha256.New()
 	hasher.Write(state.credential.ID)
 	hasher.Write(state.credential.PublicKey)
-	subject := base64.RawURLEncoding.EncodeToString(hasher.Sum(nil))
+	hasher.Write([]byte(state.clientID))
+	// NOTE: only taking 160 bits makes the subject a bit more readable while still
+	// being plenty collision resistant
+	subject := base64.RawURLEncoding.EncodeToString(hasher.Sum(nil)[:20])
 
 	rawJTI := make([]byte, 32)
 	if _, err := rand.Read(rawJTI); err != nil {
@@ -133,6 +147,8 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		Nonce:  state.nonce,
 		AtHash: atHash,
 		CHash:  cHash,
+		// TODO populate based on attestation
+		AMR: []AMR{HardwareKey, MultiFactor, Fingerprint},
 	}
 
 	idToken, err := jwt.Signed(signer).Claims(claims).Claims(openIDClaims).CompactSerialize()

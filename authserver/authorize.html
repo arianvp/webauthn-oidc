@@ -10,45 +10,20 @@
 </head>
 
 <body>
-  <form id="register">
-    <input type="hidden" name="attestation_response">
-    <fieldset>
-      <legend>Generate a new public key credential. The credential will be saved for future sessions</legend>
-      <input type="checkbox" name="verification_required" id="verification_required">
-      <label for="verification_required">Require user verification</label>
+  <form name="login" id="login" method="POST">
+    <fieldset name="create_credential">
+      <legend>Credential creation options</legend>
+      <input type="checkbox" name="require_user_verification">
+      <label for="require_user_verification">Require pin or biometric for log in (Recommended)</label>
       <br />
-      <input type="checkbox" name="presence_required" id="presence_required">
-      <label for="presence_required">Require user presence</label>
-      <br />
-      <label for="attestation">Attestation conveyance preference:</label>
-      <select name="attestation" id="attestation">
-        <option value="none">None</option>
-        <option value="direct">Direct</option>
-        <option value="indirect">Indirect</option>
-      </select>
-      <br />
-      <input type="submit" value="Generate">
+      <!-- TODO in the future separate endpoint -->
+      <input id="register" type="button" value="Generate credential">
     </fieldset>
-  </form>
-  <form id="login" method="POST">
-    <fieldset>
-      <legend>An application wants to access the following data on your behalf:</legend>
-      <input checked type="checkbox" name="openid" id="openid">
-      <label for="openid">Access User Profile</label>
-      <!-- checked based on acr_values -->
-      <input type="checkbox" name="attestation" id="attestation">
-      <label for="attestation">Access attestation information</label>
-    </fieldset>
-    <fieldset>
-      <legend>Log in with public key credential</legend>
-      <div>
-        <textarea readonly name="attestation_response" type="text"></textarea>
-      </div>
-      <div>
-        <input name="rest" type="reset">
-        <input type="submit" value="Login">
-      </div>
-    </fieldset>
+
+
+    <input type="text" required name="attestation_response">
+    <input type="submit" value="Log in">
+
     <input type="hidden" name="assertion_response">
   </form>
   <script>
@@ -90,9 +65,93 @@
       return base64urlString;
     }
 
-    const loginForm = document.forms.namedItem("login");
+    const challenge = "{{ .Challenge }}";
+    const clientID = "{{ .ClientID }}";
 
-    document.forms.namedItem("register").onsubmit = async (e) => {
+    const loginForm = document.forms.namedItem("login");
+    loginForm.elements.namedItem("attestation_response").value = localStorage.getItem(clientID + "/attestation_response");
+
+    document.getElementById("register").onclick = async (e) => {
+      e.preventDefault();
+      let credential = await navigator.credentials.create({
+        publicKey: {
+          challenge: base64urlToBuffer(challenge),
+          rp: {
+            name: "Webauthn OIDC",
+          },
+          // There user id doesn't matter for our usecase however we could put some identifying information about the OIDC audience in here
+          user: {
+            id: base64urlToBuffer("zczEAX64EcKL703DK8jkTaoX87gaKxQUwSOCdFIHbc4"), // TODO more entropy
+            name: "Arian",
+            displayName: "Arian"
+          },
+          pubKeyCredParams: [{
+            alg: -7,
+            type: "public-key"
+          }]
+        }
+      });
+      let attestationResponse = JSON.stringify({
+        id: credential.id,
+        rawId: bufferToBase64url(credential.rawId),
+        type: credential.type,
+        response: {
+          attestationObject: bufferToBase64url(credential.response.attestationObject),
+          clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
+        },
+      }, null, 2);
+
+      loginForm.elements["attestation_response"].value = attestationResponse;
+      localStorage.setItem(clientID + "/attestation_response", attestationResponse);
+    };
+
+    loginForm.onsubmit = async (e) => {
+      e.preventDefault();
+      let credential = await navigator.credentials.get({
+        publicKey: {
+          challenge: base64urlToBuffer(challenge),
+          allowCredentials: [{
+            type: "public-key",
+            id: base64urlToBuffer(JSON.parse(loginForm.elements["attestation_response"].value).id)
+          }]
+        }
+      });
+      let assertionResponse = JSON.stringify({
+        id: credential.id,
+        rawId: bufferToBase64url(credential.rawId),
+        type: credential.type,
+        response: {
+          signature: bufferToBase64url(credential.response.signature),
+          clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
+          authenticatorData: bufferToBase64url(credential.response.authenticatorData),
+        },
+      });
+      e.target.elements["assertion_response"].value = assertionResponse;
+      e.target.submit();
+    };
+    /*loginForm.onsubmit = async (e) => {
+      e.preventDefault();
+
+    /*const credential = await navigator.credentials.create({
+      publicKey: {
+        challenge: base64urlToBuffer(challenge),
+        rp: {
+          name: "Webauthn OIDC on behalf of " + clientID
+        },
+        user: {
+          id: base64urlToBuffer("zczEAX64EcKL703DK8jkTaoX87gaKxQUwSOCdFIHbc4"), // TODO more entropy
+          name: "webauthn-oidc",
+          displayName: "Webauthn OIDC on behalf of " + clientID
+        },
+        pubKeyCredParams: [{
+          alg: -7,
+          type: "public-key"
+        }]
+      }
+    });
+  };*/
+
+    /*document.forms.namedItem("register").onsubmit = async (e) => {
       e.preventDefault();
       let target = e.target;
       let challenge = "{{ .Challenge }}";
@@ -133,11 +192,7 @@
       //target.submit()
     };
 
-    loginForm.elements["attestation_response"].value = localStorage.getItem("attestation_response")
 
-    loginForm.onreset = async (e) => {
-      localStorage.removeItem("attestation_response");
-    }
     loginForm.onsubmit = async (e) => {
       e.preventDefault();
       let target = e.target;
@@ -164,7 +219,7 @@
       });
       target.elements["assertion_response"].value = assertionResponse;
       target.submit()
-    };
+    };*/
   </script>
 </body>
 

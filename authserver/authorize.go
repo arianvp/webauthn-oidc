@@ -71,19 +71,6 @@ func (response *AuthorizeResponse) Respond(w http.ResponseWriter, req *http.Requ
 	http.Redirect(w, req, response.RedirectURI.String(), http.StatusFound)
 }
 
-func (server *AuthorizationServer) CreateCredential(session webauthn.SessionData, parsedResponse *protocol.ParsedCredentialCreationData) (*webauthn.Credential, error) {
-
-	// TODO ACR values
-	shouldVerifyUser := false
-
-	invalidErr := parsedResponse.Verify(session.Challenge, shouldVerifyUser, "localhost", server.origin)
-	if invalidErr != nil {
-		return nil, invalidErr
-	}
-
-	return webauthn.MakeNewCredential(parsedResponse)
-}
-
 func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *http.Request) {
 	if err := req.ParseForm(); err != nil {
 		http.Error(w, "invalid data", http.StatusBadRequest)
@@ -113,7 +100,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	expectedClientID := util.RegisterClient(authorizeRequest.RedirectURI)
 
 	if authorizeRequest.ClientID != expectedClientID {
-		authorizeResponse.Error = fosite.ErrInvalidRequest
+		authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription("redirect_uri does not match client_id.")
 		authorizeResponse.Respond(w, req)
 		return
 	}
@@ -125,7 +112,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 			authorizeResponse.Error = fosite.ErrServerError
 			authorizeResponse.Respond(w, req)
 		}
-		err = server.sessionStore.SaveWebauthnSession("assertion", &webauthn.SessionData{
+		err = server.sessionStore.SaveWebauthnSession("session", &webauthn.SessionData{
 			Challenge: challenge.String(),
 		}, req, w)
 		if err != nil {
@@ -134,23 +121,27 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 			authorizeResponse.Respond(w, req)
 		}
 
-		template := template.New("auth.html")
-		template, err = template.ParseFS(content, "auth.html")
+		template := template.New("authorize.html")
+		template, err = template.ParseFS(content, "authorize.html")
 		if err != nil {
 			panic(err)
 		}
-
-		if err := template.Execute(w, struct{ Challenge protocol.Challenge }{challenge}); err != nil {
+		if err := template.Execute(w, struct {
+			Challenge protocol.Challenge
+			ClientID  string
+		}{challenge, authorizeRequest.ClientID}); err != nil {
 			panic(err)
 		}
 
 	case http.MethodPost:
-		sessionData, err := server.sessionStore.GetWebauthnSession("assertion", req)
+		sessionData, err := server.sessionStore.GetWebauthnSession("session", req)
 		if err != nil {
-			authorizeResponse.Error = fosite.ErrInvalidRequest
+			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription(err.Error())
 			authorizeResponse.Respond(w, req)
 			return
 		}
+
+		// If both attestation and assertion are present
 
 		if authorizeRequest.AssertionResponse == "" {
 			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription("Assertion missing")
@@ -164,21 +155,39 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 			return
 		}
 
-		attestationResponse, err := protocol.ParseCredentialCreationResponseBody(strings.NewReader(authorizeRequest.AttestationResponse))
+		var (
+			attestationResponse *protocol.ParsedCredentialCreationData
+			assertionResponse   *protocol.ParsedCredentialAssertionData
+		)
+
+		attestationResponse, err = protocol.ParseCredentialCreationResponseBody(strings.NewReader(authorizeRequest.AttestationResponse))
 		if err != nil {
 			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription(err.Error())
 			authorizeResponse.Respond(w, req)
 			return
 		}
 
-		credential, err := server.CreateCredential(sessionData, attestationResponse)
+		// TODO: Only works if attestation response was created in the same step as
+		// assertion What we could do is store an initial signed attestation in a
+		// cookie.  This signature will be valid for a long period of time and
+		// attests that we performed attestation.  This can then be presented to us
+		// to  mint an ID token with attestation data. However; for now, we don't
+		// "care", and accept anything. So ignore the result. This will require a
+		// dedicated html page for registration that stores it into the cookie /
+		// local storage. This is not needed for the MVP.
+		// Explicit consent will be asked as attestation is "revealing"
+		// user_verified depends on acr_values
+		_ = attestationResponse.Verify(sessionData.Challenge, false, "localhost", server.origin)
+
+		// credential, err := server.(sessionData, attestationResponse)
+		credential, err := webauthn.MakeNewCredential(attestationResponse)
 		if err != nil {
 			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription(err.Error())
 			authorizeResponse.Respond(w, req)
 			return
 		}
 
-		assertionResponse, err := protocol.ParseCredentialRequestResponseBody(strings.NewReader(authorizeRequest.AssertionResponse))
+		assertionResponse, err = protocol.ParseCredentialRequestResponseBody(strings.NewReader(authorizeRequest.AssertionResponse))
 		if err != nil {
 			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription("Invalid assertion")
 			authorizeResponse.Respond(w, req)
@@ -193,7 +202,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 
 		// TODO Relying Party ID
 		if err := assertionResponse.Verify(sessionData.Challenge, "localhost", server.origin, false, credential.PublicKey); err != nil {
-			authorizeResponse.Error = fosite.ErrRequestUnauthorized
+			authorizeResponse.Error = fosite.ErrRequestUnauthorized.WithDescription(err.Error())
 			authorizeResponse.Respond(w, req)
 			return
 		}
