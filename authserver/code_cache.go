@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"sync"
+
+	"github.com/duo-labs/webauthn/webauthn"
 )
 
 type state struct {
@@ -12,6 +14,7 @@ type state struct {
 	redirectURI         string
 	clientID            string
 	nonce               string
+	credential          *webauthn.Credential
 }
 
 type codeCache struct {

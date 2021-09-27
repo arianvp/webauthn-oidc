@@ -1,6 +1,7 @@
 package authserver
 
 import (
+	"bytes"
 	"log"
 	"net/http"
 	"net/url"
@@ -68,6 +69,19 @@ func (response *AuthorizeResponse) Respond(w http.ResponseWriter, req *http.Requ
 	response.RedirectURI.RawQuery = response.Values().Encode()
 	w.Header().Add("Content-Type", "application/x-www-form-urlencoded")
 	http.Redirect(w, req, response.RedirectURI.String(), http.StatusFound)
+}
+
+func (server *AuthorizationServer) CreateCredential(session webauthn.SessionData, parsedResponse *protocol.ParsedCredentialCreationData) (*webauthn.Credential, error) {
+
+	// TODO ACR values
+	shouldVerifyUser := false
+
+	invalidErr := parsedResponse.Verify(session.Challenge, shouldVerifyUser, "localhost", server.origin)
+	if invalidErr != nil {
+		return nil, invalidErr
+	}
+
+	return webauthn.MakeNewCredential(parsedResponse)
 }
 
 func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *http.Request) {
@@ -139,39 +153,60 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		}
 
 		if authorizeRequest.AssertionResponse == "" {
-			authorizeResponse.Error = fosite.ErrInvalidRequest
+			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription("Assertion missing")
 			authorizeResponse.Respond(w, req)
 			return
 		}
 
-		parsedAttestationResponse, err := protocol.ParseCredentialCreationResponseBody(strings.NewReader(authorizeRequest.AttestationResponse))
-		if err != nil {
-			authorizeResponse.Error = fosite.ErrInvalidRequest
-			authorizeResponse.Respond(w, req)
-			return
-		}
-		publicKey := parsedAttestationResponse.Response.AttestationObject.AuthData.AttData.CredentialPublicKey
-		parsedResponse, err := protocol.ParseCredentialRequestResponseBody(strings.NewReader(authorizeRequest.AssertionResponse))
-		if err != nil {
-			authorizeResponse.Error = fosite.ErrInvalidRequest
+		if authorizeRequest.AttestationResponse == "" {
+			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription("Attestation missing")
 			authorizeResponse.Respond(w, req)
 			return
 		}
 
-		if err := parsedResponse.Verify(sessionData.Challenge, "localhost", "http://localhost:8080", false, publicKey); err != nil {
-			log.Println(err)
+		attestationResponse, err := protocol.ParseCredentialCreationResponseBody(strings.NewReader(authorizeRequest.AttestationResponse))
+		if err != nil {
+			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription(err.Error())
+			authorizeResponse.Respond(w, req)
+			return
+		}
+
+		credential, err := server.CreateCredential(sessionData, attestationResponse)
+		if err != nil {
+			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription(err.Error())
+			authorizeResponse.Respond(w, req)
+			return
+		}
+
+		assertionResponse, err := protocol.ParseCredentialRequestResponseBody(strings.NewReader(authorizeRequest.AssertionResponse))
+		if err != nil {
+			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription("Invalid assertion")
+			authorizeResponse.Respond(w, req)
+			return
+		}
+
+		if !bytes.Equal(credential.ID, assertionResponse.RawID) {
+			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription("Unknown credential id")
+			authorizeResponse.Respond(w, req)
+			return
+		}
+
+		// TODO Relying Party ID
+		if err := assertionResponse.Verify(sessionData.Challenge, "localhost", server.origin, false, credential.PublicKey); err != nil {
 			authorizeResponse.Error = fosite.ErrRequestUnauthorized
 			authorizeResponse.Respond(w, req)
 			return
 		}
-		// TODO add the auth data
+
 		code, err := server.codeCache.newCode(&state{
 			codeChallenge:       authorizeRequest.CodeChallenge,
 			codeChallengeMethod: authorizeRequest.CodeChallengeMethod,
 			redirectURI:         authorizeRequest.RedirectURI,
 			clientID:            authorizeRequest.ClientID,
 			nonce:               authorizeRequest.Nonce,
+			credential:          credential,
 		})
+
 		if err != nil {
 			authorizeResponse.Error = fosite.ErrServerError
 			authorizeResponse.Respond(w, req)

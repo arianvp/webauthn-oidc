@@ -10,7 +10,7 @@
 </head>
 
 <body>
-  <form name="register" method="POST">
+  <form id="register">
     <input type="hidden" name="attestation_response">
     <fieldset>
       <legend>Generate a new public key credential. The credential will be saved for future sessions</legend>
@@ -30,7 +30,7 @@
       <input type="submit" value="Generate">
     </fieldset>
   </form>
-  <form name="login" method="POST">
+  <form id="login" method="POST">
     <fieldset>
       <legend>An application wants to access the following data on your behalf:</legend>
       <input checked type="checkbox" name="openid" id="openid">
@@ -124,7 +124,7 @@
           attestationObject: bufferToBase64url(credential.response.attestationObject),
           clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
         },
-      });
+      }, null, 2);
       target.elements["attestation_response"].value = attestationResponse
       localStorage.setItem("attestation_response", attestationResponse);
 

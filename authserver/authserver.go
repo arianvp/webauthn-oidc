@@ -2,6 +2,8 @@ package authserver
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"embed"
 	"net/http"
 
@@ -44,7 +46,7 @@ type AuthorizationServer struct {
 
 	codeCache *codeCache
 
-	jwks *jose.JSONWebKeySet
+	jwks jose.JSONWebKeySet
 
 	privateKey *ecdsa.PrivateKey
 
@@ -56,12 +58,28 @@ type AuthorizationServer struct {
 // TODO because we are dynamic we must support implict and code grant
 func New(origin string) (*AuthorizationServer, error) {
 	server := AuthorizationServer{}
+	server.origin = origin
 	server.codeCache = newCodeCache()
 	sessionStore, err := session.NewStore()
 	if err != nil {
 		return nil, err
 	}
 	server.sessionStore = sessionStore
+
+	server.privateKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	server.jwks.Keys = []jose.JSONWebKey{
+		{
+			Key:       &server.privateKey.PublicKey,
+			KeyID:     "lol",
+			Algorithm: string(jose.ES256),
+			Use:       "sig",
+		},
+	}
+
 	server.config = &OpenidConfiguration{
 		Issuer:                 origin,
 		AuthEndpoint:           origin + authorize,
@@ -101,7 +119,7 @@ func (server *AuthorizationServer) handleWellknownJwks(w http.ResponseWriter, re
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(server.jwks); err != nil {
-		http.Error(w, "encoding error", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

@@ -1,11 +1,19 @@
 package authserver
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"io"
+	"log"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/ory/fosite"
+	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/json"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 type TokenRequest struct {
@@ -27,6 +35,12 @@ type TokenResponse struct {
 	ExpiresIn        *int32 `json:"expires_in,omitempty"`
 	Error            string `json:"error,omitempty"`
 	ErrorDescription string `json:"error_description,omitempty"`
+}
+
+type OpenIDClaims struct {
+	Nonce  string `json:"nonce"`
+	AtHash string `json:"at_hash"`
+	CHash  string `json:"c_hash"`
 }
 
 func TokenRequestFromValues(values url.Values) TokenRequest {
@@ -60,8 +74,75 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		}
 		return
 	}
+	verifier := codeVerifier{
+		challenge: state.codeChallenge,
+		verifier:  tokenRequest.CodeVerifier,
+		method:    state.codeChallengeMethod,
+	}
+
+	if err := verifier.Verify(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.ES256,
+		Key:       server.privateKey,
+	}, &jose.SignerOptions{})
+
+	if err != nil {
+		panic(err)
+	}
+
+	accessToken, err := jwt.Signed(signer).CompactSerialize()
+	if err != nil {
+		panic(err)
+	}
+	tokenResponse.AccessToken = accessToken
+
+	atHashRaw := sha256.Sum256([]byte(accessToken))
+	atHash := base64.RawURLEncoding.EncodeToString(atHashRaw[:len(atHashRaw)/2])
+
+	cHashRaw := sha256.Sum256([]byte(tokenRequest.Code))
+	cHash := base64.RawURLEncoding.EncodeToString(cHashRaw[:len(atHashRaw)/2])
+
+	now := time.Now()
+
+	hasher := sha256.New()
+	hasher.Write(state.credential.ID)
+	hasher.Write(state.credential.PublicKey)
+	subject := base64.RawURLEncoding.EncodeToString(hasher.Sum(nil))
+
+	rawJTI := make([]byte, 32)
+	if _, err := rand.Read(rawJTI); err != nil {
+		panic(err)
+	}
+	jti := base64.RawURLEncoding.EncodeToString(rawJTI)
+
+	claims := jwt.Claims{
+		Issuer:    server.origin,
+		Subject:   subject,
+		Audience:  []string{state.clientID},
+		Expiry:    jwt.NewNumericDate(now.Add(24 * time.Hour)),
+		NotBefore: jwt.NewNumericDate(now),
+		IssuedAt:  jwt.NewNumericDate(now),
+		ID:        jti,
+	}
+
+	openIDClaims := OpenIDClaims{
+		Nonce:  state.nonce,
+		AtHash: atHash,
+		CHash:  cHash,
+	}
+
+	idToken, err := jwt.Signed(signer).Claims(claims).Claims(openIDClaims).CompactSerialize()
+	if err != nil {
+		panic(err)
+	}
+	tokenResponse.IDToken = idToken
+
 	w.Header().Add("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(tokenResponse); err != nil {
+	if err := json.NewEncoder(io.MultiWriter(w, log.Writer())).Encode(tokenResponse); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
