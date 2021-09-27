@@ -1,31 +1,30 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
 
 	"github.com/arianvp/webauthn-oidc/authserver"
 )
 
+var (
+	rpID     = flag.String("relying-party-id", "localhost", "Relying Party ID")
+	origin   = flag.String("origin", "https://localhost:8443", "Origin")
+	port     = flag.String("port", "8443", "Port number")
+	certFile = flag.String("cert-file", "localhost.pem", "Certificate file")
+	keyFile  = flag.String("key-file", "localhost-key.pem", "Key file")
+)
+
 func main() {
-	serverPort := "8443"
-	rpID := "localhost"
-	serverOrigin := "https://localhost:" + serverPort
+	flag.Parse()
 
-	// clientPort := "8081"
-	// clientOrigin := "http://localhost:" + clientPort
-	// redirectURI := clientOrigin + "/callback"
-
-	// clientID := util.RegisterClient(redirectURI)
-	// clientID := "0oa1zzg4kiliCsqqW5d7"
-	//serverOrigin := "https://dev-19105531.okta.com"
-
-	authserver, err := authserver.New(rpID, serverOrigin)
+	authserver, err := authserver.New(*rpID, *origin)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Fatal(http.ListenAndServeTLS("[::]:"+serverPort, "./localhost.pem", "./localhost-key.pem", authserver))
+	log.Fatal(http.ListenAndServeTLS("[::]:"+*port, *certFile, *keyFile, authserver))
 
 	/*oauthclient, err := oauthclient.New(serverOrigin, clientID, redirectURI)
 	if err != nil {
