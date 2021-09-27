@@ -1,0 +1,22 @@
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+nodes:
+  - role: control-plane
+    extraMounts:
+      - hostPath: ./localhost.pem
+        containerPath: /localhost.pem
+    kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        apiServer:
+          extraVolumes:
+            - name: oidc-ca-file
+              hostPath: /localhost.pem
+              mountPath: /localhost.pem
+
+
+          extraArgs:
+            oidc-ca-file: /localhost.pem
+            oidc-issuer-url: https://localhost:8443
+            oidc-client-id: ASF4Os1wJysH6uWvJV9PvyNiph4y4O84tGCHj1FZEE8
+            oidc-signing-algs: ES256

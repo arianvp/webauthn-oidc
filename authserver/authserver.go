@@ -26,17 +26,18 @@ const (
 )
 
 type OpenidConfiguration struct {
-	Issuer                 string                          `json:"issuer"`
-	AuthEndpoint           string                          `json:"authorization_endpoint"`
-	TokenEndpoint          string                          `json:"token_endpoint"`
-	JWKSURI                string                          `json:"jwks_uri"`
-	UserinfoEndpoint       string                          `json:"userinfo_endpoint,omitempty"`
-	SupportedAlgs          []oidc.Alg                      `json:"id_token_signing_alg_values_supported"`
-	SupportedScopes        []string                        `json:"scopes_supported"`
-	SubjectTypesSupported  []string                        `json:"subject_types_supported"`
-	ResponseTypesSupported []string                        `json:"response_types_supported"`
-	GrantTypesSupported    []string                        `json:"grant_types_supported"`
-	ACRValuesSupported     []protocol.ConveyancePreference `json:"acr_values_supported"`
+	Issuer                        string                          `json:"issuer"`
+	AuthEndpoint                  string                          `json:"authorization_endpoint"`
+	TokenEndpoint                 string                          `json:"token_endpoint"`
+	JWKSURI                       string                          `json:"jwks_uri"`
+	UserinfoEndpoint              string                          `json:"userinfo_endpoint,omitempty"`
+	SupportedAlgs                 []oidc.Alg                      `json:"id_token_signing_alg_values_supported"`
+	SupportedScopes               []string                        `json:"scopes_supported"`
+	SubjectTypesSupported         []string                        `json:"subject_types_supported"`
+	ResponseTypesSupported        []string                        `json:"response_types_supported"`
+	GrantTypesSupported           []string                        `json:"grant_types_supported"`
+	CodeChallengeMethodsSupported []string                        `json:"code_challenge_methods_supported"`
+	ACRValuesSupported            []protocol.ConveyancePreference `json:"acr_values_supported"`
 }
 
 type AuthorizationServer struct {
@@ -81,15 +82,16 @@ func New(origin string) (*AuthorizationServer, error) {
 	}
 
 	server.config = &OpenidConfiguration{
-		Issuer:                 origin,
-		AuthEndpoint:           origin + authorize,
-		TokenEndpoint:          origin + token,
-		JWKSURI:                origin + wellKnownJwks,
-		UserinfoEndpoint:       origin + userinfo,
-		SupportedAlgs:          []oidc.Alg{oidc.EdDSA, oidc.ES256},
-		SupportedScopes:        []string{"openid"},
-		SubjectTypesSupported:  []string{"pairwise"}, // the subject is the hash of credential_id+public_key+origin
-		ResponseTypesSupported: []string{"code"},
+		Issuer:                        origin,
+		AuthEndpoint:                  origin + authorize,
+		TokenEndpoint:                 origin + token,
+		JWKSURI:                       origin + wellKnownJwks,
+		UserinfoEndpoint:              origin + userinfo,
+		SupportedAlgs:                 []oidc.Alg{oidc.EdDSA, oidc.ES256},
+		SupportedScopes:               []string{"openid"},
+		SubjectTypesSupported:         []string{"pairwise"}, // the subject is the hash of credential_id+public_key+origin
+		ResponseTypesSupported:        []string{"code"},
+		CodeChallengeMethodsSupported: []string{"S256"},
 	}
 
 	server.Handle(openidConfiguration, http.HandlerFunc(server.handleOpenidConfiguration))

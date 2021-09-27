@@ -98,6 +98,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	authorizeResponse.RedirectURI = redirectURI
 
 	expectedClientID := util.RegisterClient(authorizeRequest.RedirectURI)
+	log.Println(expectedClientID)
 
 	if authorizeRequest.ClientID != expectedClientID {
 		authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription("redirect_uri does not match client_id.")
