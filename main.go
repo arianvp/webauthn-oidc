@@ -14,6 +14,7 @@ var (
 	port     = flag.String("port", "8443", "Port number")
 	certFile = flag.String("cert-file", "localhost.pem", "Certificate file")
 	keyFile  = flag.String("key-file", "localhost-key.pem", "Key file")
+	noTLS    = flag.Bool("no-tls", false, "Disable tls")
 )
 
 func main() {
@@ -24,7 +25,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Fatal(http.ListenAndServeTLS("[::]:"+*port, *certFile, *keyFile, authserver))
+	if *noTLS {
+		log.Fatal(http.ListenAndServe("[::]:"+*port, authserver))
+	} else {
+		log.Fatal(http.ListenAndServeTLS("[::]:"+*port, *certFile, *keyFile, authserver))
+	}
 
 	/*oauthclient, err := oauthclient.New(serverOrigin, clientID, redirectURI)
 	if err != nil {
