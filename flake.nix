@@ -4,6 +4,35 @@
   inputs.utils.url = "github:numtide/flake-utils";
 
   outputs = { self, utils, nixpkgs }:
+    {
+
+      nixosModule = { config, lib, ... }:
+        let cfg = config.services.webauthn-oidc; in
+        {
+          options.services.webauthn-oidc = {
+            host = lib.mkOption {
+              type = lib.types.str;
+            };
+            port = lib.mkOption {
+              type = lib.types.str;
+              default = "8080";
+            };
+          };
+          config = {
+            services.nginx.virtualHosts."${cfg.host}" = {
+              forceSSL = true;
+              enableACME = true;
+              locations."/".proxyPass = "http://localhost:8080";
+            };
+            systemd.services.webauthn-oidc = {
+              wantedBy = [ "multi-user.target" ];
+              script = "${self.defaultPackage.${config.nixpkgs.system}}/bin/webauthn-oidc -no-tls -port ${cfg.port} -relying-party-id ${cfg.host} -origin https://${cfg.host}";
+            };
+          };
+        };
+
+    }
+    //
     utils.lib.eachDefaultSystem (system:
       let pkgs = nixpkgs.legacyPackages.${system}; in
       {
@@ -40,3 +69,4 @@
         };
       });
 }
+
