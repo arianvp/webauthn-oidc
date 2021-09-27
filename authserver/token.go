@@ -4,8 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -120,16 +118,12 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	now := time.Now()
 
 	hasher := sha256.New()
-	log.Printf("credential.ID: %s", base64.RawURLEncoding.EncodeToString(state.credential.ID))
 	hasher.Write(state.credential.ID)
-	log.Printf("credential.PublicKey: %s", base64.RawURLEncoding.EncodeToString(state.credential.PublicKey))
 	hasher.Write(state.credential.PublicKey)
-	log.Printf("credential.ClientID: %s", state.clientID)
 	hasher.Write([]byte(state.clientID))
 	// NOTE: only taking 160 bits makes the subject a bit more readable while still
 	// being plenty collision resistant
 	subject := base64.RawURLEncoding.EncodeToString(hasher.Sum(nil)[:20])
-	log.Printf("Subject: %s", subject)
 
 	rawJTI := make([]byte, 32)
 	if _, err := rand.Read(rawJTI); err != nil {
@@ -162,7 +156,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	tokenResponse.IDToken = idToken
 
 	w.Header().Add("Content-Type", "application/json")
-	if err := json.NewEncoder(io.MultiWriter(w, log.Writer())).Encode(tokenResponse); err != nil {
+	if err := json.NewEncoder(w).Encode(tokenResponse); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

@@ -2,7 +2,6 @@ package authserver
 
 import (
 	"bytes"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -98,7 +97,6 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	authorizeResponse.RedirectURI = redirectURI
 
 	expectedClientID := util.RegisterClient(authorizeRequest.RedirectURI)
-	log.Println(expectedClientID)
 
 	if authorizeRequest.ClientID != expectedClientID {
 		authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription("redirect_uri does not match client_id.")
@@ -117,8 +115,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 			Challenge: challenge.String(),
 		}, req, w)
 		if err != nil {
-			log.Println(err)
-			authorizeResponse.Error = fosite.ErrServerError
+			authorizeResponse.Error = fosite.ErrServerError.WithDescription(err.Error())
 			authorizeResponse.Respond(w, req)
 		}
 

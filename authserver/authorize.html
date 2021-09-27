@@ -107,7 +107,7 @@
 
     loginForm.onsubmit = async (e) => {
       e.preventDefault();
-      let credential = await navigator.credentials.get({
+      let params = {
         publicKey: {
           challenge: base64urlToBuffer(challenge),
           allowCredentials: [{
@@ -115,7 +115,9 @@
             id: base64urlToBuffer(JSON.parse(loginForm.elements["attestation_response"].value).id)
           }]
         }
-      });
+      };
+      console.log(params);
+      let credential = await navigator.credentials.get(params);
       let assertionResponse = JSON.stringify({
         id: credential.id,
         rawId: bufferToBase64url(credential.rawId),
@@ -126,6 +128,7 @@
           authenticatorData: bufferToBase64url(credential.response.authenticatorData),
         },
       });
+      console.log(assertionResponse);
       e.target.elements["assertion_response"].value = assertionResponse;
       e.target.submit();
     };
