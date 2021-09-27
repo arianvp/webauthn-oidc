@@ -9,6 +9,7 @@ import (
 
 func main() {
 	serverPort := "8443"
+	rpID := "localhost"
 	serverOrigin := "https://localhost:" + serverPort
 
 	// clientPort := "8081"
@@ -19,7 +20,7 @@ func main() {
 	// clientID := "0oa1zzg4kiliCsqqW5d7"
 	//serverOrigin := "https://dev-19105531.okta.com"
 
-	authserver, err := authserver.New(serverOrigin)
+	authserver, err := authserver.New(rpID, serverOrigin)
 	if err != nil {
 		log.Fatal(err)
 	}

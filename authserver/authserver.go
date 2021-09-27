@@ -44,6 +44,7 @@ type AuthorizationServer struct {
 	http.ServeMux
 
 	origin string
+	rpID   string
 
 	codeCache *codeCache
 
@@ -57,8 +58,9 @@ type AuthorizationServer struct {
 }
 
 // TODO because we are dynamic we must support implict and code grant
-func New(origin string) (*AuthorizationServer, error) {
+func New(rpID string, origin string) (*AuthorizationServer, error) {
 	server := AuthorizationServer{}
+	server.rpID = rpID
 	server.origin = origin
 	server.codeCache = newCodeCache()
 	sessionStore, err := session.NewStore()

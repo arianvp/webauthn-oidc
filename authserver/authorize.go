@@ -178,7 +178,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		// local storage. This is not needed for the MVP.
 		// Explicit consent will be asked as attestation is "revealing"
 		// user_verified depends on acr_values
-		_ = attestationResponse.Verify(sessionData.Challenge, false, "localhost", server.origin)
+		_ = attestationResponse.Verify(sessionData.Challenge, false, server.rpID, server.origin)
 
 		// credential, err := server.(sessionData, attestationResponse)
 		credential, err := webauthn.MakeNewCredential(attestationResponse)
@@ -202,7 +202,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		}
 
 		// TODO Relying Party ID
-		if err := assertionResponse.Verify(sessionData.Challenge, "localhost", server.origin, false, credential.PublicKey); err != nil {
+		if err := assertionResponse.Verify(sessionData.Challenge, server.rpID, server.origin, false, credential.PublicKey); err != nil {
 			authorizeResponse.Error = fosite.ErrRequestUnauthorized.WithDescription(err.Error())
 			authorizeResponse.Respond(w, req)
 			return
