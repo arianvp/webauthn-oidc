@@ -37,7 +37,7 @@ jobs:
 
       - name: Push container
         run: |
-          imageTag="$(nix eval --raw .\?rev=$(git rev-parse HEAD)#container.imageTag))"
+          imageTag="$(nix eval --raw .\?rev=$(git rev-parse HEAD)#container.imageTag)"
           skopeo copy --dest-creds "$DOCKER_LOGIN" docker-archive:./result "docker://quay.io/arianvp/webauthn-oidc:$imageTag"
 
           skopeo copy --dest-creds "$DOCKER_LOGIN" "docker://quay.io/arianvp/webauthn-oidc:"{"$imageTag","${{ github.sha }}"}
