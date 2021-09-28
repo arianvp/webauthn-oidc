@@ -2,6 +2,8 @@ module github.com/arianvp/webauthn-oidc
 
 go 1.16
 
+replace github.com/duo-labs/webauthn => github.com/arianvp/webauthn v0.0.0-20210928001254-d9dcd044e9f9
+
 require (
 	github.com/dgraph-io/ristretto v0.0.3 // indirect
 	github.com/duo-labs/webauthn v0.0.0-20210727191636-9f1b88ef44cc
