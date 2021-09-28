@@ -26,7 +26,7 @@ jobs:
         id: nix-eval-cache
         with:
           path: $HOME/.cache/nix
-          key: ${{ runner.os }}-${{ hashFiles('flake.nix') }}-${{ hashFiles('flake.lock') }}
+          key: ${{ runner.os }}-${{ hashFiles('**/flake.nix') }}-${{ hashFiles('**/flake.lock') }}
 
       - name: Build app
         run: |
