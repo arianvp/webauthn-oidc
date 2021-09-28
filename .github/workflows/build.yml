@@ -17,6 +17,7 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
             access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+            log-format = raw
       - uses: cachix/cachix-action@v7
         with:
           name: arianvp
@@ -26,6 +27,7 @@ jobs:
         run: |
           git status
           nix build .#
+          nix build --rebuild # Build again to check reproducibility
       - name: Build container
         run: nix build .#container
 
