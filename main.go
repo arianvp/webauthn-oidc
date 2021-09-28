@@ -31,6 +31,8 @@ func main() {
 		log.Fatal(http.ListenAndServeTLS("[::]:"+*port, *certFile, *keyFile, authserver))
 	}
 
+        // test
+
 	/*oauthclient, err := oauthclient.New(serverOrigin, clientID, redirectURI)
 	if err != nil {
 		log.Fatal(err)
