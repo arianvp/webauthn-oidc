@@ -2,30 +2,51 @@
 
 Webauthn-oidc is a very minimal OIDC authorization server that only supports
 webauthn for authentication.  This can be used to bootstrap a secure-by-design
-passwordless identity provider for your company.
+passwordless identity system.
 
+webauthn-oidc stores no state whatsoever.  (Well currently we store the authorisation code temporarily but working on that).
 
-webauthn-oidc stores no state whatsoever.
+No secrets are shared anywhere either. We implement PKCE for peforming the
+challenge between client and server.
 
-After a user performs registration The audience of the OIDC token 
-
-
-## Registration
-
-To register a new webauthn credential, initiate an OAuth flow using the following parameters:
+## Demo
+In this demo you'll be able to authenticate to a local kubernetes kind cluster.
 
 ```
-client_id=<your website>
+kind cluster create --config kind.yaml
 ```
 
-e.g.
-
+Then follow the instructions printed by:
 ```
-client_id=https://grafana.example.com
+kubectl oidc-login setup --oidc-issuer-url https://oidc.arianvp.me --oidc-client-id ASF4Os1wJysH6uWvJV9PvyNiph4y4O84tGCHj1FZE
 ```
 
-The user will be prompted to register a webauthn credential
+To create an account backed by a hardware token with `cluster-admin` priveleges.
+
+
+
+## Registering an Oauth Client
+
+For now registration is completely public. The algorithm to mint a `client_id` for a given `redirect_uri` is:
+```go
+func RegisterClient(redirectURI string) string {
+	hash := sha256.Sum256([]byte(redirectURI))
+	return base64.RawURLEncoding.EncodeToString(hash[:])
+}
+```
+
 
 ## Login
+Your identity is minted from the hash of your public key and credential id.
+The original attestation of your Hardware token is stored in `localStorage` upon registration.
+On authentication, you send both the attestation statement and the assertion statement
+of the webauthn challenge legs. We then verify that the signature in the assertion is signed
+with the key in the attestation statement and then mint an ID token
+```
+base64urlencode(sha256(credential_id||public_key||client_id)[20:])
+```
 
-To 
+
+
+
+
