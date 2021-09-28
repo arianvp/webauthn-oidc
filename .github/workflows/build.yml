@@ -31,6 +31,7 @@ jobs:
       - name: Build app
         run: |
           git status
+          git diff-index HEAD
           nix build --print-build-logs --log-format raw .#
           nix build --print-build-logs --log-format raw --rebuild # Build again to check reproducibility
       - name: Build container
