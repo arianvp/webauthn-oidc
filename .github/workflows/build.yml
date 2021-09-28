@@ -28,7 +28,7 @@ jobs:
           nix build --print-build-logs --log-format raw .#
           nix build --print-build-logs --log-format raw --rebuild # Build again to check reproducibility
       - name: Build container
-        run: nix build -L  --log-format=raw .#container
+        run: nix build --print-build-logs  --log-format raw .#container
 
       - name: Push container
         run: |
