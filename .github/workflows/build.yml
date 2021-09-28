@@ -22,6 +22,12 @@ jobs:
           name: arianvp
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
+      - uses: actions/cache@v2
+        id: nix-eval-cache
+        with:
+          path: $HOME/.cache/nix
+          key: '${{ runner.os }}-${{ hashFiles("*/flake.nix") }}-${{ hashFiles("*/flake.lock") }}'
+
       - name: Build app
         run: |
           git status
