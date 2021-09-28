@@ -8,8 +8,6 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
-        with:
-          submodules: true
       - uses: cachix/install-nix-action@v14
         with:
           install_url: https://nixos-nix-install-tests.cachix.org/serve/vij683ly7sl95nnhb67bdjjfabclr85m/install
@@ -39,7 +37,7 @@ jobs:
 
       - name: Push container
         run: |
-          imageTag="$(nix eval --raw .\?rev=$(git rev-parse HEAD)#container.imageTag)"
+          imageTag="$(nix eval --raw .\?rev=$(git rev-parse HEAD)#container.imageTag))"
           skopeo copy --dest-creds "$DOCKER_LOGIN" docker-archive:./result "docker://quay.io/arianvp/webauthn-oidc:$imageTag"
 
           skopeo copy --dest-creds "$DOCKER_LOGIN" "docker://quay.io/arianvp/webauthn-oidc:"{"$imageTag","${{ github.sha }}"}
