@@ -30,10 +30,10 @@ jobs:
 
       - name: Build app
         run: |
-          nix build --log-format raw .\?rev=$(git rev-parse HEAD)
+          nix build -L -vvvv .\?rev=$(git rev-parse HEAD)
       - name: Build container
         run: |
-          nix build --log-format raw .\?rev=$(git rev-parse HEAD)#container
+          nix build -L -vvvv .\?rev=$(git rev-parse HEAD)#container
 
       - name: Push container
         run: |
