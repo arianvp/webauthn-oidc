@@ -16,12 +16,14 @@ In this demo you'll be able to authenticate to a local kubernetes kind cluster.
 kind cluster create --config kind.yaml
 ```
 
-Then follow the instructions printed by:
+Then follow the instructions printed by `kubelogin` to create an account backed by a hardware token with `cluster-admin` priveleges:
 ```
 kubectl oidc-login setup --oidc-issuer-url https://oidc.arianvp.me --oidc-client-id ASF4Os1wJysH6uWvJV9PvyNiph4y4O84tGCHj1FZE
 ```
 
-To create an account backed by a hardware token with `cluster-admin` priveleges.
+### Video demo
+https://user-images.githubusercontent.com/628387/135057960-89915cd1-d801-47d3-a145-1d7c27f62fc3.mp4
+
 
 
 
