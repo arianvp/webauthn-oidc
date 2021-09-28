@@ -57,5 +57,38 @@ base64urlencode(sha256(credential_id||public_key||client_id)[20:])
 * Set `amr` values according to what kind of challenge was done (biometric vs pin)
 * Allow people to set `acr_values` to require certain assurance level during login (e.g. biometric or FIPS ceritified)
 
+## Deploy yourself
+
+### Using NixOS
+
+
+```nix
+# /etc/configuration/flake.nix
+{
+  description = "Example deploy";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-21.05";
+    webauthn-oidc.url = "github.com:arianvp/webauthn-oidc";
+  };
+
+  outputs = { self, webauthn-oidc, nixpkgs }: {
+    nixosModules.oidcWithNginx = {
+      services.nginx.enable = true;
+      services.webauthn-oidc = {
+        host = "oidc.arianvp.me"; # CHANGE ME
+        createNginxConfig = true;
+      };
+    };
+    nixosConfigurations."webauthn-oidc" = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        webauthn-oidc.nixosModule
+        self.nixosModules.oidcWithNginx
+      ];
+    };
+  }
+```
+
 
 

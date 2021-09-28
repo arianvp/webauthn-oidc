@@ -17,9 +17,10 @@
               type = lib.types.str;
               default = "8080";
             };
+            createNginxConfig = lib.mkEnableOption "enable nginx config";
           };
           config = {
-            services.nginx.virtualHosts."${cfg.host}" = {
+            services.nginx.virtualHosts."${cfg.host}" = lib.mkIf cfg.createNginxConfig {
               forceSSL = true;
               enableACME = true;
               locations."/".proxyPass = "http://localhost:8080";
