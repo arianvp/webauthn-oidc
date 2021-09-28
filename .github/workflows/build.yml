@@ -30,12 +30,10 @@ jobs:
 
       - name: Build app
         run: |
-          git status
-          git diff-index HEAD
-          nix build --print-build-logs --log-format raw .#
-          nix build --print-build-logs --log-format raw --rebuild # Build again to check reproducibility
+          nix build --log-format raw .\?rev=$(git rev-parse HEAD)
       - name: Build container
-        run: nix build --print-build-logs  --log-format raw .#container
+        run: |
+          nix build --log-format raw .#container\?rev=$(git rev-parse HEAD)
 
       - name: Push container
         run: |
