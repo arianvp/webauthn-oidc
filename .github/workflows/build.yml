@@ -33,7 +33,7 @@ jobs:
           nix build --log-format raw .\?rev=$(git rev-parse HEAD)
       - name: Build container
         run: |
-          nix build --log-format raw .#container\?rev=$(git rev-parse HEAD)
+          nix build --log-format raw .\?rev=$(git rev-parse HEAD)#container
 
       - name: Push container
         run: |
