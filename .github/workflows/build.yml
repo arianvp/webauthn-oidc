@@ -29,6 +29,6 @@ jobs:
 
       - name: Push container
         run: |
-          skopeo copy --dest-creds "$DOCKER_LOGIN" docker-archive:./result "docker://quay.io/arianvp/webauthn-oidc"
+          skopeo copy --dest-creds "$DOCKER_LOGIN" docker-archive:./result "docker://quay.io/arianvp/webauthn-oidc:$(nix eval --raw .#container.imageTag)"
         env:
           DOCKER_LOGIN: '${{ secrets.DOCKER_LOGIN }}'
