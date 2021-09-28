@@ -23,7 +23,9 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - name: Build app
-        run: nix build .#
+        run: |
+          git status
+          nix build .#
       - name: Build container
         run: nix build .#container
 
