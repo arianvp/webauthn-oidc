@@ -216,6 +216,16 @@ var (
 		ErrorField:       errJTIKnownName,
 		CodeField:        http.StatusBadRequest,
 	}
+	ErrInvalidRedirectURI = &RFC6749Error{
+		DescriptionField: "The redirect_uri was invalid.",
+		ErrorField:       errInvalidRedirectURI,
+		CodeField:        http.StatusBadRequest,
+	}
+	ErrInvalidClientMetadata = &RFC6749Error{
+		DescriptionField: "The redirect_uri was invalid.",
+		ErrorField:       errInvalidClientMetadata,
+		CodeField:        http.StatusBadRequest,
+	}
 )
 
 const (
@@ -253,6 +263,8 @@ const (
 	errRequestURINotSupportedName   = "request_uri_not_supported"
 	errRegistrationNotSupportedName = "registration_not_supported"
 	errJTIKnownName                 = "jti_known"
+	errInvalidRedirectURI           = "invalid_redirect_uri"
+	errInvalidClientMetadata        = "invalid_client_metadata"
 )
 
 type (
@@ -478,4 +490,20 @@ func (e *RFC6749Error) ToValues() url.Values {
 	}
 
 	return values
+}
+
+func (e *RFC6749Error) RespondJSON(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(e.CodeField)
+	json.NewEncoder(w).Encode(e)
+
+}
+func (e *RFC6749Error) RespondRedirect(w http.ResponseWriter, req *http.Request) {
+	query := req.URL.Query()
+	for k, v := range e.ToValues() {
+		query[k] = v
+	}
+	req.URL.RawQuery = query.Encode()
+	w.Header().Set("Location", req.URL.String())
+	w.WriteHeader(http.StatusFound)
 }

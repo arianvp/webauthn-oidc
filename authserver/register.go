@@ -13,8 +13,13 @@ type RegistrationRequest struct {
 }
 
 type RegistrationResponse struct {
-	ClientID string `json:"client_id"`
+	ClientID string `json:"client_id,omitempty"`
 }
+
+const (
+	InvalidRedirectURI    string = "invalid_redirect_uri"
+	InvalidClientMetadata string = "invalid_client_metadata"
+)
 
 func (server *AuthorizationServer) handleRegister(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
@@ -23,7 +28,7 @@ func (server *AuthorizationServer) handleRegister(w http.ResponseWriter, req *ht
 	}
 	var registrationRequest RegistrationRequest
 	if err := json.NewDecoder(req.Body).Decode(&registrationRequest); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		ErrInvalidRequest.WithDescription(err.Error()).RespondJSON(w)
 		return
 	}
 
@@ -32,7 +37,7 @@ func (server *AuthorizationServer) handleRegister(w http.ResponseWriter, req *ht
 	for _, rawurl := range registrationRequest.RedirectURIs {
 		url, err := url.Parse(rawurl)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			ErrInvalidRedirectURI.WithDescription(err.Error()).RespondJSON(w)
 			return
 
 		}
@@ -41,7 +46,7 @@ func (server *AuthorizationServer) handleRegister(w http.ResponseWriter, req *ht
 
 	clientID, err := util.RegisterClient(redirectURIs)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		ErrInvalidRedirectURI.WithDescription(err.Error()).RespondJSON(w)
 		return
 	}
 	registrationResponse := RegistrationResponse{
