@@ -26,12 +26,10 @@ type TokenRequest struct {
 }
 
 type TokenResponse struct {
-	AccessToken      string `json:"access_token,omitempty"`
-	IDToken          string `json:"id_token,omitempty"`
-	TokenType        string `json:"token_type,omitempty"`
-	ExpiresIn        *int32 `json:"expires_in,omitempty"`
-	Error            string `json:"error,omitempty"`
-	ErrorDescription string `json:"error_description,omitempty"`
+	AccessToken string           `json:"access_token,omitempty"`
+	IDToken     string           `json:"id_token,omitempty"`
+	TokenType   string           `json:"token_type,omitempty"`
+	ExpiresIn   *jwt.NumericDate `json:"expires_in,omitempty"`
 }
 
 type AMR string
@@ -82,15 +80,9 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		return
 	}
 
-	var tokenResponse TokenResponse
 	state := server.codeCache.del(tokenRequest.Code)
 	if state == nil {
-		tokenResponse.Error = ErrInvalidRequest.ErrorField
-		tokenResponse.ErrorDescription = ErrInvalidRequest.DescriptionField
-		w.Header().Add("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(tokenResponse); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		}
+		ErrInvalidState.RespondJSON(w)
 		return
 	}
 	verifier := codeVerifier{
@@ -100,7 +92,8 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	}
 
 	if err := verifier.Verify(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		// TODO is this the correct reponse?
+		ErrInvalidRequest.RespondJSON(w)
 		return
 	}
 
@@ -117,7 +110,6 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	if err != nil {
 		panic(err)
 	}
-	tokenResponse.AccessToken = accessToken
 
 	atHashRaw := sha256.Sum256([]byte(accessToken))
 	atHash := base64.RawURLEncoding.EncodeToString(atHashRaw[:len(atHashRaw)/2])
@@ -126,6 +118,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	cHash := base64.RawURLEncoding.EncodeToString(cHashRaw[:len(atHashRaw)/2])
 
 	now := time.Now()
+	expiresIn := jwt.NewNumericDate(now.Add(24 * time.Hour))
 
 	hasher := sha256.New()
 	hasher.Write(state.credential.ID)
@@ -145,7 +138,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		Issuer:    server.origin,
 		Subject:   subject,
 		Audience:  []string{state.clientID},
-		Expiry:    jwt.NewNumericDate(now.Add(24 * time.Hour)),
+		Expiry:    expiresIn,
 		NotBefore: jwt.NewNumericDate(now),
 		IssuedAt:  jwt.NewNumericDate(now),
 		ID:        jti,
@@ -163,7 +156,13 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	if err != nil {
 		panic(err)
 	}
-	tokenResponse.IDToken = idToken
+
+	tokenResponse := TokenResponse{
+		AccessToken: accessToken,
+		IDToken:     idToken,
+		TokenType:   "Bearer",
+		ExpiresIn:   expiresIn,
+	}
 
 	w.Header().Add("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(tokenResponse); err != nil {
