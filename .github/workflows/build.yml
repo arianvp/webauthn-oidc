@@ -25,6 +25,9 @@ jobs:
         with:
           path: $HOME/.cache/nix
           key: ${{ runner.os }}-${{ hashFiles('**/flake.nix') }}-${{ hashFiles('**/flake.lock') }}
+      - name: Show source
+        run: |
+          nix eval .#defaultPackage.x86_64-linux.src
       - name: Dry run
         run: |
           nix build --dry-run .\?rev=$(git rev-parse HEAD)
