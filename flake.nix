@@ -54,7 +54,7 @@
         defaultPackage = pkgs.buildGoModule {
           pname = "webauthn-oidc";
           version = "0.0.1";
-          src =  builtins.path { path = pkgs.lib.cleanSource ./.; name = "webauthn-oidc"; };
+          src =  pkgs.lib.cleanSource ./.;
           vendorSha256 = "sha256-C3ojEXtg7h3+URMBWAaB45ugtSaaJRHyBqiTDW4hDtU=";
         };
 
