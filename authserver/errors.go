@@ -498,12 +498,12 @@ func (e *RFC6749Error) RespondJSON(w http.ResponseWriter) {
 	json.NewEncoder(w).Encode(e)
 
 }
-func (e *RFC6749Error) RespondRedirect(w http.ResponseWriter, req *http.Request) {
-	query := req.URL.Query()
+func (e *RFC6749Error) RespondRedirect(w http.ResponseWriter, redirectURI *url.URL) {
+	query := redirectURI.Query()
 	for k, v := range e.ToValues() {
 		query[k] = v
 	}
-	req.URL.RawQuery = query.Encode()
-	w.Header().Set("Location", req.URL.String())
+	redirectURI.RawQuery = query.Encode()
+	w.Header().Set("Location", redirectURI.String())
 	w.WriteHeader(http.StatusFound)
 }

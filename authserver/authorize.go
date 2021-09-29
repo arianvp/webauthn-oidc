@@ -47,20 +47,13 @@ func AuthorizeRequestFromValues(values url.Values) AuthorizeRequest {
 type AuthorizeResponse struct {
 	RedirectURI *url.URL
 	State       string
-	Error       *RFC6749Error
 	Code        string
 }
 
 func (response *AuthorizeResponse) Values() url.Values {
 	values := make(url.Values)
 	values.Set("state", response.State)
-	if response.Error != nil {
-		for k, v := range response.Error.ToValues() {
-			values[k] = v
-		}
-	} else {
-		values.Set("code", response.Code)
-	}
+	values.Set("code", response.Code)
 	return values
 }
 
@@ -94,6 +87,11 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		http.Error(w, "invalid redirect_uri", http.StatusBadRequest)
 		return
 	}
+
+	query := redirectURI.Query()
+	query.Set("state", authorizeRequest.State)
+	redirectURI.RawQuery = query.Encode()
+
 	authorizeResponse.RedirectURI = redirectURI
 
 	expectedClientID, err := util.RegisterClient([]*url.URL{redirectURI})
@@ -102,15 +100,13 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	}
 
 	if authorizeRequest.ClientID != expectedClientID {
-		authorizeResponse.Error = ErrInvalidRequest.WithDescription("redirect_uri does not match client_id.")
-		authorizeResponse.Respond(w, req)
+		ErrInvalidRequest.WithDescription("redirect_uri does not match client_id.").RespondRedirect(w, redirectURI)
 		return
 	}
 
 	session, err := server.sessionStore.Get(req, "webauthn")
 	if err != nil {
-		authorizeResponse.Error = ErrServerError
-		authorizeResponse.Respond(w, req)
+		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
 		return
 	}
 
@@ -118,8 +114,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	case http.MethodGet:
 		challenge, err := protocol.CreateChallenge()
 		if err != nil {
-			authorizeResponse.Error = ErrServerError
-			authorizeResponse.Respond(w, req)
+			ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
 			return
 		}
 
@@ -129,8 +124,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 
 		session.Values["assertion"] = serialized
 		if err := session.Save(req, w); err != nil {
-			authorizeResponse.Error = ErrServerError.WithDescription(err.Error())
-			authorizeResponse.Respond(w, req)
+			ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
 			return
 		}
 
@@ -149,21 +143,18 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	case http.MethodPost:
 		var sessionData webauthn.SessionData
 		if err := json.Unmarshal(session.Values["assertion"].([]byte), &sessionData); err != nil {
-			authorizeResponse.Error = ErrInvalidRequest.WithDescription(err.Error())
-			authorizeResponse.Respond(w, req)
+			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
 			return
 		}
 		// If both attestation and assertion are present
 
 		if authorizeRequest.AssertionResponse == "" {
-			authorizeResponse.Error = ErrInvalidRequest.WithDescription("Assertion missing")
-			authorizeResponse.Respond(w, req)
+			ErrInvalidRequest.WithDescription("Assertion missing").RespondRedirect(w, redirectURI)
 			return
 		}
 
 		if authorizeRequest.AttestationResponse == "" {
-			authorizeResponse.Error = ErrInvalidRequest.WithDescription("Attestation missing")
-			authorizeResponse.Respond(w, req)
+			ErrInvalidRequest.WithDescription("Attestation missing").RespondRedirect(w, redirectURI)
 			return
 		}
 
@@ -174,8 +165,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 
 		attestationResponse, err = protocol.ParseCredentialCreationResponseBody(strings.NewReader(authorizeRequest.AttestationResponse))
 		if err != nil {
-			authorizeResponse.Error = ErrInvalidRequest.WithDescription(err.Error())
-			authorizeResponse.Respond(w, req)
+			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
 			return
 		}
 
@@ -194,28 +184,25 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		// credential, err := server.(sessionData, attestationResponse)
 		credential, err := webauthn.MakeNewCredential(attestationResponse)
 		if err != nil {
-			authorizeResponse.Error = ErrInvalidRequest.WithDescription(err.Error())
-			authorizeResponse.Respond(w, req)
+			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
 			return
 		}
 
 		assertionResponse, err = protocol.ParseCredentialRequestResponseBody(strings.NewReader(authorizeRequest.AssertionResponse))
 		if err != nil {
-			authorizeResponse.Error = ErrInvalidRequest.WithDescription("Invalid assertion")
-			authorizeResponse.Respond(w, req)
+			ErrInvalidRequest.WithDescription("Invalid assertion").RespondRedirect(w, redirectURI)
 			return
 		}
 
 		if !bytes.Equal(credential.ID, assertionResponse.RawID) {
-			authorizeResponse.Error = ErrInvalidRequest.WithDescription("Unknown credential id")
+			ErrInvalidRequest.WithDescription("Unknown credential id").RespondRedirect(w, redirectURI)
 			authorizeResponse.Respond(w, req)
 			return
 		}
 
 		// TODO Relying Party ID
 		if err := assertionResponse.Verify(sessionData.Challenge, server.rpID, server.origin, false, credential.PublicKey); err != nil {
-			authorizeResponse.Error = ErrRequestUnauthorized.WithDescription(err.Error())
-			authorizeResponse.Respond(w, req)
+			ErrRequestUnauthorized.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
 			return
 		}
 
@@ -229,8 +216,8 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		})
 
 		if err != nil {
-			authorizeResponse.Error = ErrServerError
-			authorizeResponse.Respond(w, req)
+			ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
+			return
 		}
 		authorizeResponse.Code = code
 		authorizeResponse.Respond(w, req)
