@@ -1,11 +1,14 @@
 package authserver
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/url"
 
-	"github.com/arianvp/webauthn-oidc/util"
+	"github.com/duo-labs/webauthn/protocol"
+	"github.com/pkg/errors"
 )
 
 type RegistrationRequest struct {
@@ -16,10 +19,29 @@ type RegistrationResponse struct {
 	ClientID string `json:"client_id,omitempty"`
 }
 
-const (
-	InvalidRedirectURI    string = "invalid_redirect_uri"
-	InvalidClientMetadata string = "invalid_client_metadata"
-)
+func RegisterClient(req RegistrationRequest) (*RegistrationResponse, error) {
+	var origin string
+	if len(req.RedirectURIs) == 0 {
+		return nil, errors.New("No redirect_uris found")
+	}
+	for _, redirectURI := range req.RedirectURIs {
+		url, err := url.Parse(redirectURI)
+		if err != nil {
+			return nil, ErrInvalidRedirectURI.WithDescription(err.Error())
+
+		}
+		newOrigin := protocol.FullyQualifiedOrigin(url)
+		if origin == "" {
+			origin = newOrigin
+		} else if origin != newOrigin {
+			return nil, errors.New("All redirect_uris must have the same origin")
+		}
+	}
+	hash := sha256.Sum256([]byte(origin))
+	return &RegistrationResponse{
+		ClientID: base64.RawURLEncoding.EncodeToString(hash[:]),
+	}, nil
+}
 
 func (server *AuthorizationServer) handleRegister(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
@@ -44,13 +66,10 @@ func (server *AuthorizationServer) handleRegister(w http.ResponseWriter, req *ht
 		redirectURIs = append(redirectURIs, url)
 	}
 
-	clientID, err := util.RegisterClient(redirectURIs)
+	registrationResponse, err := RegisterClient(registrationRequest)
 	if err != nil {
-		ErrInvalidRedirectURI.WithDescription(err.Error()).RespondJSON(w)
+		ErrorToRFC6749Error(err).RespondJSON(w)
 		return
-	}
-	registrationResponse := RegistrationResponse{
-		ClientID: clientID,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

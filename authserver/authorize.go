@@ -9,7 +9,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/arianvp/webauthn-oidc/util"
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/webauthn"
 )
@@ -64,12 +63,12 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	query := redirectURI.Query()
 	query.Set("state", authorizeRequest.State)
 
-	expectedClientID, err := util.RegisterClient([]*url.URL{redirectURI})
+	registrationResponse, err := RegisterClient(RegistrationRequest{[]string{authorizeRequest.RedirectURI}})
 	if err != nil {
 		ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 	}
 
-	if authorizeRequest.ClientID != expectedClientID {
+	if authorizeRequest.ClientID != registrationResponse.ClientID {
 		ErrInvalidRequest.WithDescription("redirect_uri does not match client_id.").RespondRedirect(w, redirectURI, query)
 		return
 	}
