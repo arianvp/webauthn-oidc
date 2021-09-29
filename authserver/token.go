@@ -165,9 +165,6 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	}
 
 	w.Header().Add("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(tokenResponse); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+	json.NewEncoder(w).Encode(tokenResponse)
 
 }
