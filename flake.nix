@@ -5,7 +5,6 @@
 
   outputs = { self, utils, nixpkgs }:
     {
-
       nixosModule = { config, lib, ... }:
         let cfg = config.services.webauthn-oidc; in
         {
