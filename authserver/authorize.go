@@ -3,6 +3,7 @@ package authserver
 import (
 	"bytes"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -75,8 +76,8 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 
 	session, err := server.sessionStore.Get(req, "webauthn")
 	if err != nil {
-		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-		return
+		// non-fatal. resets session
+		log.Print(err)
 	}
 
 	switch req.Method {
