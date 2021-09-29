@@ -498,8 +498,7 @@ func (e *RFC6749Error) RespondJSON(w http.ResponseWriter) {
 	json.NewEncoder(w).Encode(e)
 
 }
-func (e *RFC6749Error) RespondRedirect(w http.ResponseWriter, redirectURI *url.URL) {
-	query := redirectURI.Query()
+func (e *RFC6749Error) RespondRedirect(w http.ResponseWriter, redirectURI *url.URL, query url.Values) {
 	for k, v := range e.ToValues() {
 		query[k] = v
 	}

@@ -41,68 +41,41 @@ func AuthorizeRequestFromValues(values url.Values) AuthorizeRequest {
 	}
 }
 
-type AuthorizeResponse struct {
-	RedirectURI *url.URL
-	State       string
-	Code        string
-}
-
-func (response *AuthorizeResponse) Values() url.Values {
-	values := make(url.Values)
-	values.Set("state", response.State)
-	values.Set("code", response.Code)
-	return values
-}
-
-func (response *AuthorizeResponse) Respond(w http.ResponseWriter, req *http.Request) {
-	response.RedirectURI.RawQuery = response.Values().Encode()
-	http.Redirect(w, req, response.RedirectURI.String(), http.StatusFound)
-}
-
 func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *http.Request) {
 	if err := req.ParseForm(); err != nil {
-		http.Error(w, "invalid data", http.StatusBadRequest)
+		ErrInvalidRequest.WithDescription("invalid syntax").RespondJSON(w)
 		return
 	}
 	authorizeRequest := AuthorizeRequestFromValues(req.Form)
-	authorizeResponse := AuthorizeResponse{
-		State: authorizeRequest.State,
-	}
 
 	if authorizeRequest.RedirectURI == "" {
 		http.Error(w, "missing redirect_uri", http.StatusBadRequest)
-		return
-	}
-	if authorizeRequest.RedirectURI == "" {
-		http.Error(w, "missing redirect_uri", http.StatusBadRequest)
+		ErrInvalidRequest.WithDescription("missing redirect_uri").RespondJSON(w)
 		return
 	}
 
 	redirectURI, err := url.Parse(authorizeRequest.RedirectURI)
 	if err != nil {
-		http.Error(w, "invalid redirect_uri", http.StatusBadRequest)
+		ErrInvalidRedirectURI.RespondJSON(w)
 		return
 	}
 
 	query := redirectURI.Query()
 	query.Set("state", authorizeRequest.State)
-	redirectURI.RawQuery = query.Encode()
-
-	authorizeResponse.RedirectURI = redirectURI
 
 	expectedClientID, err := util.RegisterClient([]*url.URL{redirectURI})
 	if err != nil {
-
+		ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 	}
 
 	if authorizeRequest.ClientID != expectedClientID {
-		ErrInvalidRequest.WithDescription("redirect_uri does not match client_id.").RespondRedirect(w, redirectURI)
+		ErrInvalidRequest.WithDescription("redirect_uri does not match client_id.").RespondRedirect(w, redirectURI, query)
 		return
 	}
 
 	session, err := server.sessionStore.Get(req, "webauthn")
 	if err != nil {
-		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
+		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 		return
 	}
 
@@ -110,7 +83,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	case http.MethodGet:
 		challenge, err := protocol.CreateChallenge()
 		if err != nil {
-			ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
+			ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 			return
 		}
 
@@ -120,7 +93,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 
 		session.Values["assertion"] = serialized
 		if err := session.Save(req, w); err != nil {
-			ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
+			ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 			return
 		}
 
@@ -139,18 +112,18 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	case http.MethodPost:
 		var sessionData webauthn.SessionData
 		if err := json.Unmarshal(session.Values["assertion"].([]byte), &sessionData); err != nil {
-			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
+			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 			return
 		}
 		// If both attestation and assertion are present
 
 		if authorizeRequest.AssertionResponse == "" {
-			ErrInvalidRequest.WithDescription("Assertion missing").RespondRedirect(w, redirectURI)
+			ErrInvalidRequest.WithDescription("Assertion missing").RespondRedirect(w, redirectURI, query)
 			return
 		}
 
 		if authorizeRequest.AttestationResponse == "" {
-			ErrInvalidRequest.WithDescription("Attestation missing").RespondRedirect(w, redirectURI)
+			ErrInvalidRequest.WithDescription("Attestation missing").RespondRedirect(w, redirectURI, query)
 			return
 		}
 
@@ -161,7 +134,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 
 		attestationResponse, err = protocol.ParseCredentialCreationResponseBody(strings.NewReader(authorizeRequest.AttestationResponse))
 		if err != nil {
-			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
+			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 			return
 		}
 
@@ -180,25 +153,24 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		// credential, err := server.(sessionData, attestationResponse)
 		credential, err := webauthn.MakeNewCredential(attestationResponse)
 		if err != nil {
-			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
+			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 			return
 		}
 
 		assertionResponse, err = protocol.ParseCredentialRequestResponseBody(strings.NewReader(authorizeRequest.AssertionResponse))
 		if err != nil {
-			ErrInvalidRequest.WithDescription("Invalid assertion").RespondRedirect(w, redirectURI)
+			ErrInvalidRequest.WithDescription("Invalid assertion").RespondRedirect(w, redirectURI, query)
 			return
 		}
 
 		if !bytes.Equal(credential.ID, assertionResponse.RawID) {
-			ErrInvalidRequest.WithDescription("Unknown credential id").RespondRedirect(w, redirectURI)
-			authorizeResponse.Respond(w, req)
+			ErrInvalidRequest.WithDescription("Unknown credential id").RespondRedirect(w, redirectURI, query)
 			return
 		}
 
 		// TODO Relying Party ID
 		if err := assertionResponse.Verify(sessionData.Challenge, server.rpID, server.origin, false, credential.PublicKey); err != nil {
-			ErrRequestUnauthorized.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
+			ErrRequestUnauthorized.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 			return
 		}
 
@@ -212,11 +184,13 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		})
 
 		if err != nil {
-			ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI)
+			ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 			return
 		}
-		authorizeResponse.Code = code
-		authorizeResponse.Respond(w, req)
+		query.Set("code", code)
+		redirectURI.RawQuery = query.Encode()
+		w.Header().Set("Location", redirectURI.String())
+		w.WriteHeader(http.StatusFound)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
