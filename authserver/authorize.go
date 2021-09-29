@@ -56,7 +56,6 @@ func (response *AuthorizeResponse) Values() url.Values {
 
 func (response *AuthorizeResponse) Respond(w http.ResponseWriter, req *http.Request) {
 	response.RedirectURI.RawQuery = response.Values().Encode()
-	w.Header().Add("Content-Type", "application/x-www-form-urlencoded")
 	http.Redirect(w, req, response.RedirectURI.String(), http.StatusFound)
 }
 
