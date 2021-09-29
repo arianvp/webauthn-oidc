@@ -61,16 +61,27 @@ func TokenRequestFromValues(values url.Values) TokenRequest {
 	}
 }
 
+func ParseTokenRequest(req *http.Request) (*TokenRequest, error) {
+	if err := req.ParseForm(); err != nil {
+		return nil, err
+	}
+	tokenRequest := TokenRequestFromValues(req.Form)
+	return &tokenRequest, nil
+
+}
+
 func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	if err := req.ParseForm(); err != nil {
+
+	tokenRequest, err := ParseTokenRequest(req)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	tokenRequest := TokenRequestFromValues(req.Form)
+
 	var tokenResponse TokenResponse
 	state := server.codeCache.del(tokenRequest.Code)
 	if state == nil {
@@ -145,7 +156,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		AtHash: atHash,
 		CHash:  cHash,
 		// TODO populate based on attestation
-		AMR: []AMR{HardwareKey, MultiFactor, Fingerprint},
+		AMR: []AMR{HardwareKey, MultiFactor},
 	}
 
 	idToken, err := jwt.Signed(signer).Claims(claims).Claims(openIDClaims).CompactSerialize()

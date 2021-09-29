@@ -2,8 +2,6 @@ package authserver
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"embed"
 	"net/http"
 
@@ -19,14 +17,17 @@ var content embed.FS
 
 const (
 	openidConfiguration = "/.well-known/openid-configuration"
+	register            = "/register"
 	authorize           = "/authorize"
 	token               = "/token"
 	userinfo            = "/userinfo"
 	wellKnownJwks       = "/.well-known/jwks.json"
+	webFinger           = "/.well-known/webfinger"
 )
 
 type OpenidConfiguration struct {
 	Issuer                        string                          `json:"issuer"`
+	RegistrationEndpoint          string                          `json:"registration_endpoint"`
 	AuthEndpoint                  string                          `json:"authorization_endpoint"`
 	TokenEndpoint                 string                          `json:"token_endpoint"`
 	JWKSURI                       string                          `json:"jwks_uri"`
@@ -58,31 +59,21 @@ type AuthorizationServer struct {
 }
 
 // TODO because we are dynamic we must support implict and code grant
-func New(rpID string, origin string) (*AuthorizationServer, error) {
+func New(rpID string, origin string, privateKey *ecdsa.PrivateKey, cookieKeys [][]byte) AuthorizationServer {
 	server := AuthorizationServer{}
 	server.rpID = rpID
 	server.origin = origin
 	server.codeCache = newCodeCache()
 
-	var err error
-	server.privateKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, err
-	}
+	server.privateKey = privateKey
 
-	key := make([]byte, 32)
-
-	if _, err := rand.Reader.Read(key); err != nil {
-		return nil, err
-	}
-
-	sessionStore := sessions.NewCookieStore(key)
+	sessionStore := sessions.NewCookieStore(cookieKeys...)
 	server.sessionStore = sessionStore
 
 	server.jwks.Keys = []jose.JSONWebKey{
 		{
 			Key:       &server.privateKey.PublicKey,
-			KeyID:     "lol",
+			KeyID:     "lol", // TODO hash of key!
 			Algorithm: string(jose.ES256),
 			Use:       "sig",
 		},
@@ -90,23 +81,27 @@ func New(rpID string, origin string) (*AuthorizationServer, error) {
 
 	server.config = &OpenidConfiguration{
 		Issuer:                        origin,
+		RegistrationEndpoint:          origin + register,
 		AuthEndpoint:                  origin + authorize,
 		TokenEndpoint:                 origin + token,
 		JWKSURI:                       origin + wellKnownJwks,
 		UserinfoEndpoint:              origin + userinfo,
 		SupportedAlgs:                 []oidc.Alg{oidc.EdDSA, oidc.ES256},
 		SupportedScopes:               []string{"openid"},
-		SubjectTypesSupported:         []string{"pairwise"}, // the subject is the hash of credential_id+public_key+origin
+		SubjectTypesSupported:         []string{"pairwise"},
 		ResponseTypesSupported:        []string{"code"},
+		GrantTypesSupported:           []string{"authorization_code"},
 		CodeChallengeMethodsSupported: []string{"S256"},
+		ACRValuesSupported:            []protocol.ConveyancePreference{},
 	}
 
 	server.Handle(openidConfiguration, http.HandlerFunc(server.handleOpenidConfiguration))
 	server.Handle(authorize, http.HandlerFunc(server.handleAuthorize))
 	server.Handle(token, http.HandlerFunc(server.handleToken))
 	server.Handle(wellKnownJwks, http.HandlerFunc(server.handleWellknownJwks))
+	server.Handle(register, http.HandlerFunc(server.handleRegister))
 
-	return &server, nil
+	return server
 }
 
 func (server *AuthorizationServer) handleOpenidConfiguration(w http.ResponseWriter, req *http.Request) {
@@ -131,5 +126,4 @@ func (server *AuthorizationServer) handleWellknownJwks(w http.ResponseWriter, re
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 }

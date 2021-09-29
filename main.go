@@ -1,6 +1,9 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"flag"
 	"log"
 	"net/http"
@@ -20,15 +23,25 @@ var (
 func main() {
 	flag.Parse()
 
-	authserver, err := authserver.New(*rpID, *origin)
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		log.Fatal(err)
+	}
+	cookieKey := make([]byte, 64)
+	_, err = rand.Reader.Read(cookieKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	authserver := authserver.New(*rpID, *origin, privateKey, [][]byte{cookieKey})
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	if *noTLS {
-		log.Fatal(http.ListenAndServe("[::]:"+*port, authserver))
+		log.Fatal(http.ListenAndServe("[::]:"+*port, &authserver))
 	} else {
-		log.Fatal(http.ListenAndServeTLS("[::]:"+*port, *certFile, *keyFile, authserver))
+		log.Fatal(http.ListenAndServeTLS("[::]:"+*port, *certFile, *keyFile, &authserver))
 	}
 
 	// test

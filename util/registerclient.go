@@ -3,9 +3,22 @@ package util
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
+	"net/url"
+
+	"github.com/duo-labs/webauthn/protocol"
 )
 
-func RegisterClient(redirectURI string) string {
-	hash := sha256.Sum256([]byte(redirectURI))
-	return base64.RawURLEncoding.EncodeToString(hash[:])
+func RegisterClient(redirectURIs []*url.URL) (string, error) {
+	var origin string
+	for _, redirectURI := range redirectURIs {
+		newOrigin := protocol.FullyQualifiedOrigin(redirectURI)
+		if origin == "" {
+			origin = newOrigin
+		} else if origin != newOrigin {
+			return "", errors.New("All redirect_uris must have the same origin")
+		}
+	}
+	hash := sha256.Sum256([]byte(origin))
+	return base64.RawURLEncoding.EncodeToString(hash[:]), nil
 }
