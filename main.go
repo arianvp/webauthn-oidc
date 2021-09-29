@@ -32,8 +32,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	clientSecretKey := make([]byte, 64)
+	_, err = rand.Reader.Read(clientSecretKey)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	authserver := authserver.New(*rpID, *origin, privateKey, [][]byte{cookieKey})
+	authserver := authserver.New(*rpID, *origin, privateKey, [][]byte{cookieKey}, clientSecretKey)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -63,7 +63,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	query := redirectURI.Query()
 	query.Set("state", authorizeRequest.State)
 
-	registrationResponse, err := RegisterClient(RegistrationRequest{[]string{authorizeRequest.RedirectURI}})
+	registrationResponse, err := server.RegisterClient(RegistrationRequest{[]string{authorizeRequest.RedirectURI}})
 	if err != nil {
 		ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 	}

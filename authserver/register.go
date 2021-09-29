@@ -1,6 +1,7 @@
 package authserver
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -16,10 +17,11 @@ type RegistrationRequest struct {
 }
 
 type RegistrationResponse struct {
-	ClientID string `json:"client_id,omitempty"`
+	ClientID     string `json:"client_id,omitempty"`
+	ClientSecret string `json:"client_secret,omitempty"`
 }
 
-func RegisterClient(req RegistrationRequest) (*RegistrationResponse, error) {
+func (server *AuthorizationServer) RegisterClient(req RegistrationRequest) (*RegistrationResponse, error) {
 	var origin string
 	if len(req.RedirectURIs) == 0 {
 		return nil, errors.New("No redirect_uris found")
@@ -37,9 +39,12 @@ func RegisterClient(req RegistrationRequest) (*RegistrationResponse, error) {
 			return nil, errors.New("All redirect_uris must have the same origin")
 		}
 	}
-	hash := sha256.Sum256([]byte(origin))
+	clientIDRaw := sha256.Sum256([]byte(origin))
+	hmacer := hmac.New(sha256.New, server.clientSecretKey)
+	clientSecretRaw := hmacer.Sum(clientIDRaw[:])
 	return &RegistrationResponse{
-		ClientID: base64.RawURLEncoding.EncodeToString(hash[:]),
+		ClientID:     base64.RawURLEncoding.EncodeToString(clientIDRaw[:]),
+		ClientSecret: base64.RawURLEncoding.EncodeToString(clientSecretRaw),
 	}, nil
 }
 
@@ -66,7 +71,7 @@ func (server *AuthorizationServer) handleRegister(w http.ResponseWriter, req *ht
 		redirectURIs = append(redirectURIs, url)
 	}
 
-	registrationResponse, err := RegisterClient(registrationRequest)
+	registrationResponse, err := server.RegisterClient(registrationRequest)
 	if err != nil {
 		ErrorToRFC6749Error(err).RespondJSON(w)
 		return

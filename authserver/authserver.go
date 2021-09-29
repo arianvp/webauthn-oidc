@@ -47,6 +47,8 @@ type AuthorizationServer struct {
 	origin string
 	rpID   string
 
+	clientSecretKey []byte
+
 	codeCache *codeCache
 
 	jwks jose.JSONWebKeySet
@@ -59,13 +61,14 @@ type AuthorizationServer struct {
 }
 
 // TODO because we are dynamic we must support implict and code grant
-func New(rpID string, origin string, privateKey *ecdsa.PrivateKey, cookieKeys [][]byte) AuthorizationServer {
+func New(rpID string, origin string, privateKey *ecdsa.PrivateKey, cookieKeys [][]byte, clientSecretKey []byte) AuthorizationServer {
 	server := AuthorizationServer{}
 	server.rpID = rpID
 	server.origin = origin
 	server.codeCache = newCodeCache()
 
 	server.privateKey = privateKey
+	server.clientSecretKey = clientSecretKey
 
 	sessionStore := sessions.NewCookieStore(cookieKeys...)
 	server.sessionStore = sessionStore
