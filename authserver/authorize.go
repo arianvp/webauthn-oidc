@@ -26,9 +26,6 @@ type AuthorizeRequest struct {
 	AssertionResponse   string
 }
 
-type AuthorizeParams struct {
-}
-
 func AuthorizeRequestFromValues(values url.Values) AuthorizeRequest {
 	return AuthorizeRequest{
 		ResponseType:        values.Get("response_type"),
