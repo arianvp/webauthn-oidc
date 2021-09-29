@@ -2,6 +2,7 @@ package authserver
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
@@ -10,7 +11,6 @@ import (
 	"github.com/arianvp/webauthn-oidc/util"
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/webauthn"
-	"github.com/ory/fosite"
 )
 
 type AuthorizeRequest struct {
@@ -47,7 +47,7 @@ func AuthorizeRequestFromValues(values url.Values) AuthorizeRequest {
 type AuthorizeResponse struct {
 	RedirectURI *url.URL
 	State       string
-	Error       *fosite.RFC6749Error
+	Error       *RFC6749Error
 	Code        string
 }
 
@@ -99,7 +99,14 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	expectedClientID := util.RegisterClient(authorizeRequest.RedirectURI)
 
 	if authorizeRequest.ClientID != expectedClientID {
-		authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription("redirect_uri does not match client_id.")
+		authorizeResponse.Error = ErrInvalidRequest.WithDescription("redirect_uri does not match client_id.")
+		authorizeResponse.Respond(w, req)
+		return
+	}
+
+	session, err := server.sessionStore.Get(req, "webauthn")
+	if err != nil {
+		authorizeResponse.Error = ErrServerError
 		authorizeResponse.Respond(w, req)
 		return
 	}
@@ -108,15 +115,20 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	case http.MethodGet:
 		challenge, err := protocol.CreateChallenge()
 		if err != nil {
-			authorizeResponse.Error = fosite.ErrServerError
+			authorizeResponse.Error = ErrServerError
 			authorizeResponse.Respond(w, req)
+			return
 		}
-		err = server.sessionStore.SaveWebauthnSession("session", &webauthn.SessionData{
+
+		serialized, _ := json.Marshal(&webauthn.SessionData{
 			Challenge: challenge.String(),
-		}, req, w)
-		if err != nil {
-			authorizeResponse.Error = fosite.ErrServerError.WithDescription(err.Error())
+		})
+
+		session.Values["assertion"] = serialized
+		if err := session.Save(req, w); err != nil {
+			authorizeResponse.Error = ErrServerError.WithDescription(err.Error())
 			authorizeResponse.Respond(w, req)
+			return
 		}
 
 		template := template.New("authorize.html")
@@ -132,23 +144,22 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		}
 
 	case http.MethodPost:
-		sessionData, err := server.sessionStore.GetWebauthnSession("session", req)
-		if err != nil {
-			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription(err.Error())
+		var sessionData webauthn.SessionData
+		if err := json.Unmarshal(session.Values["assertion"].([]byte), &sessionData); err != nil {
+			authorizeResponse.Error = ErrInvalidRequest.WithDescription(err.Error())
 			authorizeResponse.Respond(w, req)
 			return
 		}
-
 		// If both attestation and assertion are present
 
 		if authorizeRequest.AssertionResponse == "" {
-			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription("Assertion missing")
+			authorizeResponse.Error = ErrInvalidRequest.WithDescription("Assertion missing")
 			authorizeResponse.Respond(w, req)
 			return
 		}
 
 		if authorizeRequest.AttestationResponse == "" {
-			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription("Attestation missing")
+			authorizeResponse.Error = ErrInvalidRequest.WithDescription("Attestation missing")
 			authorizeResponse.Respond(w, req)
 			return
 		}
@@ -160,7 +171,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 
 		attestationResponse, err = protocol.ParseCredentialCreationResponseBody(strings.NewReader(authorizeRequest.AttestationResponse))
 		if err != nil {
-			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription(err.Error())
+			authorizeResponse.Error = ErrInvalidRequest.WithDescription(err.Error())
 			authorizeResponse.Respond(w, req)
 			return
 		}
@@ -180,27 +191,27 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		// credential, err := server.(sessionData, attestationResponse)
 		credential, err := webauthn.MakeNewCredential(attestationResponse)
 		if err != nil {
-			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription(err.Error())
+			authorizeResponse.Error = ErrInvalidRequest.WithDescription(err.Error())
 			authorizeResponse.Respond(w, req)
 			return
 		}
 
 		assertionResponse, err = protocol.ParseCredentialRequestResponseBody(strings.NewReader(authorizeRequest.AssertionResponse))
 		if err != nil {
-			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription("Invalid assertion")
+			authorizeResponse.Error = ErrInvalidRequest.WithDescription("Invalid assertion")
 			authorizeResponse.Respond(w, req)
 			return
 		}
 
 		if !bytes.Equal(credential.ID, assertionResponse.RawID) {
-			authorizeResponse.Error = fosite.ErrInvalidRequest.WithDescription("Unknown credential id")
+			authorizeResponse.Error = ErrInvalidRequest.WithDescription("Unknown credential id")
 			authorizeResponse.Respond(w, req)
 			return
 		}
 
 		// TODO Relying Party ID
 		if err := assertionResponse.Verify(sessionData.Challenge, server.rpID, server.origin, false, credential.PublicKey); err != nil {
-			authorizeResponse.Error = fosite.ErrRequestUnauthorized.WithDescription(err.Error())
+			authorizeResponse.Error = ErrRequestUnauthorized.WithDescription(err.Error())
 			authorizeResponse.Respond(w, req)
 			return
 		}
@@ -215,7 +226,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		})
 
 		if err != nil {
-			authorizeResponse.Error = fosite.ErrServerError
+			authorizeResponse.Error = ErrServerError
 			authorizeResponse.Respond(w, req)
 		}
 		authorizeResponse.Code = code

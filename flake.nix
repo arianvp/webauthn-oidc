@@ -5,7 +5,6 @@
 
   outputs = { self, utils, nixpkgs }:
     {
-
       nixosModule = { config, lib, ... }:
         let cfg = config.services.webauthn-oidc; in
         {
@@ -55,8 +54,8 @@
         defaultPackage = pkgs.buildGoModule {
           pname = "webauthn-oidc";
           version = "0.0.1";
-          src = ./.;
-          vendorSha256 = "sha256-CMTqBHq3z5Iv9W+TU6W72gR7163xz29hrO8CGUmUzrs=";
+          src =  pkgs.lib.cleanSource ./.;
+          vendorSha256 = "sha256-C3ojEXtg7h3+URMBWAaB45ugtSaaJRHyBqiTDW4hDtU=";
         };
 
         devShell = with pkgs; mkShell {

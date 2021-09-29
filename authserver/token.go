@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/ory/fosite"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/json"
 	"gopkg.in/square/go-jose.v2/jwt"
@@ -75,8 +74,8 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	var tokenResponse TokenResponse
 	state := server.codeCache.del(tokenRequest.Code)
 	if state == nil {
-		tokenResponse.Error = fosite.ErrInvalidRequest.ErrorField
-		tokenResponse.ErrorDescription = fosite.ErrInvalidRequest.DescriptionField
+		tokenResponse.Error = ErrInvalidRequest.ErrorField
+		tokenResponse.ErrorDescription = ErrInvalidRequest.DescriptionField
 		w.Header().Add("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(tokenResponse); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)

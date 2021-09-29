@@ -7,8 +7,8 @@ import (
 	"embed"
 	"net/http"
 
-	"github.com/duo-labs/webauthn.io/session"
 	"github.com/duo-labs/webauthn/protocol"
+	"github.com/gorilla/sessions"
 	"github.com/hashicorp/cap/oidc"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/json"
@@ -54,7 +54,7 @@ type AuthorizationServer struct {
 
 	config *OpenidConfiguration
 
-	sessionStore *session.Store
+	sessionStore *sessions.CookieStore
 }
 
 // TODO because we are dynamic we must support implict and code grant
@@ -63,16 +63,21 @@ func New(rpID string, origin string) (*AuthorizationServer, error) {
 	server.rpID = rpID
 	server.origin = origin
 	server.codeCache = newCodeCache()
-	sessionStore, err := session.NewStore()
-	if err != nil {
-		return nil, err
-	}
-	server.sessionStore = sessionStore
 
+	var err error
 	server.privateKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
 	}
+
+	key := make([]byte, 32)
+
+	if _, err := rand.Reader.Read(key); err != nil {
+		return nil, err
+	}
+
+	sessionStore := sessions.NewCookieStore(key)
+	server.sessionStore = sessionStore
 
 	server.jwks.Keys = []jose.JSONWebKey{
 		{
