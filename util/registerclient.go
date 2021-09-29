@@ -11,6 +11,9 @@ import (
 
 func RegisterClient(redirectURIs []*url.URL) (string, error) {
 	var origin string
+	if len(redirectURIs) == 0 {
+		return "", errors.New("No redirect_uris found")
+	}
 	for _, redirectURI := range redirectURIs {
 		newOrigin := protocol.FullyQualifiedOrigin(redirectURI)
 		if origin == "" {
