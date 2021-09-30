@@ -129,17 +129,6 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		panic(err)
 	}
 
-	accessToken, err := jwt.Signed(signer).CompactSerialize()
-	if err != nil {
-		panic(err)
-	}
-
-	atHashRaw := sha256.Sum256([]byte(accessToken))
-	atHash := base64.RawURLEncoding.EncodeToString(atHashRaw[:len(atHashRaw)/2])
-
-	cHashRaw := sha256.Sum256([]byte(tokenRequest.Code))
-	cHash := base64.RawURLEncoding.EncodeToString(cHashRaw[:len(atHashRaw)/2])
-
 	now := time.Now()
 	expiresIn := jwt.NewNumericDate(now.Add(24 * time.Hour))
 
@@ -155,9 +144,37 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	if _, err := rand.Read(rawJTI); err != nil {
 		panic(err)
 	}
+
 	jti := base64.RawURLEncoding.EncodeToString(rawJTI)
 
 	claims := jwt.Claims{
+		Issuer:    server.origin,
+		Subject:   subject,
+		Audience:  []string{server.origin},
+		Expiry:    expiresIn,
+		NotBefore: jwt.NewNumericDate(now),
+		IssuedAt:  jwt.NewNumericDate(now),
+		ID:        jti,
+	}
+
+	accessToken, err := jwt.Signed(signer).Claims(claims).CompactSerialize()
+	if err != nil {
+		panic(err)
+	}
+
+	atHashRaw := sha256.Sum256([]byte(accessToken))
+	atHash := base64.RawURLEncoding.EncodeToString(atHashRaw[:len(atHashRaw)/2])
+
+	cHashRaw := sha256.Sum256([]byte(tokenRequest.Code))
+	cHash := base64.RawURLEncoding.EncodeToString(cHashRaw[:len(atHashRaw)/2])
+
+	rawJTI = make([]byte, 32)
+	if _, err := rand.Read(rawJTI); err != nil {
+		panic(err)
+	}
+	jti = base64.RawURLEncoding.EncodeToString(rawJTI)
+
+	claims = jwt.Claims{
 		Issuer:    server.origin,
 		Subject:   subject,
 		Audience:  []string{state.clientID},
