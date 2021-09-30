@@ -14,16 +14,17 @@ import (
 )
 
 type AuthorizeRequest struct {
-	ResponseType        string
-	ClientID            string
-	RedirectURI         string
-	State               string
-	Scope               string
-	CodeChallengeMethod string
-	CodeChallenge       string
-	Nonce               string
-	AttestationResponse string
-	AssertionResponse   string
+	ResponseType        string `json:"response_type,omitempty"`
+	ClientID            string `json:"client_id,omitempty"`
+	RedirectURI         string `json:"redirect_uri,omitempty"`
+	RequestURI          string `json:"request_uri,omitempty"`
+	State               string `json:"state,omitempty"`
+	Scope               string `json:"scope,omitempty"`
+	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
+	CodeChallenge       string `json:"code_challenge,omitmepty"`
+	Nonce               string `json:"nonce,omitmepty"`
+	AttestationResponse string `json:"attestation_response,omitempty"`
+	AssertionResponse   string `json:"assertion_response,omitempty"`
 }
 
 func AuthorizeRequestFromValues(values url.Values) AuthorizeRequest {
@@ -31,6 +32,7 @@ func AuthorizeRequestFromValues(values url.Values) AuthorizeRequest {
 		ResponseType:        values.Get("response_type"),
 		ClientID:            values.Get("client_id"),
 		RedirectURI:         values.Get("redirect_uri"),
+		RequestURI:          values.Get("request_uri"),
 		State:               values.Get("state"),
 		Scope:               values.Get("scope"),
 		CodeChallengeMethod: values.Get("code_challenge_method"),
@@ -74,6 +76,10 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		return
 	}
 
+	if authorizeRequest.RequestURI != "" {
+		// TODO support.  need to decode the jwt at request_uri
+		ErrRequestURINotSupported.RespondRedirect(w, redirectURI, query)
+	}
 	if authorizeRequest.ResponseType != "code" {
 		ErrUnsupportedResponseType.RespondRedirect(w, redirectURI, query)
 		return
