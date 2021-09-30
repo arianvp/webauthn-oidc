@@ -19,6 +19,7 @@ type AuthorizeRequest struct {
 	ClientID            string `json:"client_id,omitempty"`
 	RedirectURI         string `json:"redirect_uri,omitempty"`
 	RequestURI          string `json:"request_uri,omitempty"`
+	Prompt              string `json:"prompt,omitempty"`
 	State               string `json:"state,omitempty"`
 	Scope               string `json:"scope,omitempty"`
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
@@ -35,6 +36,7 @@ func AuthorizeRequestFromValues(values url.Values) AuthorizeRequest {
 		RedirectURI:         values.Get("redirect_uri"),
 		RequestURI:          values.Get("request_uri"),
 		Request:             values.Get("request"),
+		Prompt:              values.Get("prompt"),
 		State:               values.Get("state"),
 		Scope:               values.Get("scope"),
 		CodeChallengeMethod: values.Get("code_challenge_method"),
@@ -81,13 +83,21 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	if authorizeRequest.RequestURI != "" {
 		// TODO support.  need to decode the jwt at request_uri
 		ErrRequestURINotSupported.RespondRedirect(w, redirectURI, query)
+		return
 	}
 	if authorizeRequest.Request != "" {
 		// TODO support
 		ErrRequestNotSupported.RespondRedirect(w, redirectURI, query)
+		return
 	}
 	if authorizeRequest.ResponseType != "code" {
 		ErrUnsupportedResponseType.RespondRedirect(w, redirectURI, query)
+		return
+	}
+
+	if authorizeRequest.Prompt == "none" {
+		// TODO this should not return an error once we have session cookies implemented
+		ErrInteractionRequired.RespondRedirect(w, redirectURI, query)
 		return
 	}
 
