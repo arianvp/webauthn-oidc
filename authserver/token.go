@@ -122,7 +122,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.RS256,
-		Key:       server.privateJWKs.Key(string(jose.RS256)),
+		Key:       server.privateJWKs.Key(string(jose.RS256))[0],
 	}, &jose.SignerOptions{})
 
 	if err != nil {
