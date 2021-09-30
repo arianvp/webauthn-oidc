@@ -73,6 +73,11 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		return
 	}
 
+	if authorizeRequest.ResponseType != "code" {
+		ErrUnsupportedResponseType.RespondRedirect(w, redirectURI, query)
+		return
+	}
+
 	challengeSession, err := server.sessionStore.Get(req, "webauthn")
 	if err != nil {
 		// non-fatal. resets session
