@@ -179,6 +179,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 			codeChallengeMethod: authorizeRequest.CodeChallengeMethod,
 			redirectURI:         authorizeRequest.RedirectURI,
 			clientID:            authorizeRequest.ClientID,
+			clientSecret:        registrationResponse.ClientSecret,
 			nonce:               authorizeRequest.Nonce,
 			credential:          credential,
 		})

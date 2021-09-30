@@ -13,6 +13,7 @@ type state struct {
 	codeChallengeMethod string
 	redirectURI         string
 	clientID            string
+	clientSecret        string
 	nonce               string
 	credential          *webauthn.Credential
 }

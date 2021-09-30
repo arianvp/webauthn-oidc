@@ -85,15 +85,37 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		ErrInvalidState.RespondJSON(w)
 		return
 	}
-	verifier := codeVerifier{
-		challenge: state.codeChallenge,
-		verifier:  tokenRequest.CodeVerifier,
-		method:    state.codeChallengeMethod,
+
+	authorized := false
+
+	if tokenRequest.CodeVerifier != "" {
+		verifier := codeVerifier{
+			challenge: state.codeChallenge,
+			verifier:  tokenRequest.CodeVerifier,
+			method:    state.codeChallengeMethod,
+		}
+
+		if err := verifier.Verify(); err != nil {
+			// TODO is this the correct reponse?
+			ErrInvalidRequest.WithDescription(err.Error()).RespondJSON(w)
+			return
+		}
+		authorized = true
 	}
 
-	if err := verifier.Verify(); err != nil {
-		// TODO is this the correct reponse?
-		ErrInvalidRequest.RespondJSON(w)
+	clientID, clientSecret, hasBasicAuth := req.BasicAuth()
+
+	if err != nil {
+		ErrInvalidRequest.WithDescription(err.Error()).RespondJSON(w)
+		return
+	}
+
+	if hasBasicAuth && clientID == state.clientID && clientSecret == state.clientSecret {
+		authorized = true
+	}
+
+	if !authorized {
+		ErrUnauthorizedClient.RespondJSON(w)
 		return
 	}
 
