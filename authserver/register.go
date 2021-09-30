@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/duo-labs/webauthn/protocol"
 	"github.com/pkg/errors"
 )
 
@@ -22,24 +21,19 @@ type RegistrationResponse struct {
 }
 
 func (server *AuthorizationServer) RegisterClient(req RegistrationRequest) (*RegistrationResponse, error) {
-	var origin string
 	if len(req.RedirectURIs) == 0 {
 		return nil, errors.New("No redirect_uris found")
 	}
-	for _, redirectURI := range req.RedirectURIs {
-		url, err := url.Parse(redirectURI)
-		if err != nil {
-			return nil, ErrInvalidRedirectURI.WithDescription(err.Error())
-
-		}
-		newOrigin := protocol.FullyQualifiedOrigin(url)
-		if origin == "" {
-			origin = newOrigin
-		} else if origin != newOrigin {
-			return nil, errors.New("All redirect_uris must have the same origin")
-		}
+	if len(req.RedirectURIs) > 1 {
+		return nil, errors.New("Only one redirect_uri can currently be registered per client")
 	}
-	clientIDRaw := sha256.Sum256([]byte(origin))
+	redirectURI := req.RedirectURIs[0]
+	_, err := url.Parse(redirectURI)
+	if err != nil {
+		return nil, ErrInvalidRedirectURI.WithDescription(err.Error())
+
+	}
+	clientIDRaw := sha256.Sum256([]byte(redirectURI))
 	hmacer := hmac.New(sha256.New, server.clientSecretKey)
 	clientSecretRaw := hmacer.Sum(clientIDRaw[:])
 	return &RegistrationResponse{
