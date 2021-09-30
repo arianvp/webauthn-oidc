@@ -83,7 +83,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 
 	state := server.codeCache.del(tokenRequest.Code)
 	if state == nil {
-		ErrInvalidState.RespondJSON(w)
+		ErrInvalidGrant.RespondJSON(w)
 		return
 	}
 
