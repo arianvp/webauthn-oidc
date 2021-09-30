@@ -8,6 +8,10 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
+type UserinfoResponse struct {
+	Subject string `json:"sub"`
+}
+
 func (server *AuthorizationServer) handleUserinfo(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet && req.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -37,5 +41,5 @@ func (server *AuthorizationServer) handleUserinfo(w http.ResponseWriter, req *ht
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(claims)
+	json.NewEncoder(w).Encode(UserinfoResponse{claims.Subject})
 }
