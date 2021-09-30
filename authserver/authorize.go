@@ -65,6 +65,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	registrationResponse, err := server.RegisterClient(RegistrationRequest{[]string{authorizeRequest.RedirectURI}})
 	if err != nil {
 		ErrInvalidRequest.WithDescription(err.Error()).RespondJSON(w)
+		return
 	}
 
 	if authorizeRequest.ClientID != registrationResponse.ClientID {

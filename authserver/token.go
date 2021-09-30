@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -87,8 +86,6 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		return
 	}
 
-	authorized := false
-
 	if tokenRequest.CodeVerifier != "" {
 		verifier := codeVerifier{
 			challenge: state.codeChallenge,
@@ -101,22 +98,16 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 			ErrInvalidRequest.WithDescription(err.Error()).RespondJSON(w)
 			return
 		}
-		authorized = true
 	}
-
 	clientID, clientSecret, hasBasicAuth := req.BasicAuth()
 
-	if err != nil {
-		ErrInvalidRequest.WithDescription(err.Error()).RespondJSON(w)
-		return
+	if !hasBasicAuth {
+		clientID = req.Form.Get("client_id")
+		clientSecret = req.Form.Get("client_secret")
 	}
 
-	if hasBasicAuth && clientID == state.clientID && clientSecret == state.clientSecret {
-		authorized = true
-	}
-
-	if !authorized {
-		ErrUnauthorizedClient.WithDescription(fmt.Sprintf("%v %s==%s %s==%s", hasBasicAuth, clientID, state.clientID, clientSecret, state.clientSecret)).RespondJSON(w)
+	if clientID != "" && clientSecret != "" && (clientID != state.clientID || clientSecret != state.clientSecret) {
+		ErrUnauthorizedClient.RespondJSON(w)
 		return
 	}
 
