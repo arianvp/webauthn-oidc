@@ -104,7 +104,7 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, privateR
 		GrantTypesSupported:               []string{"authorization_code"},
 		CodeChallengeMethodsSupported:     []string{"S256"},
 		ACRValuesSupported:                []protocol.ConveyancePreference{},
-		TokenEndpointAuthMethodsSupported: []string{"none"},
+		TokenEndpointAuthMethodsSupported: []string{"none", "client_secret_basic"},
 	}
 
 	server.Handle(openidConfiguration, http.HandlerFunc(server.handleOpenidConfiguration))
