@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/webauthn"
@@ -172,6 +173,8 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 			return
 		}
 
+		now := time.Now()
+
 		code, err := server.codeCache.newCode(&state{
 			codeChallenge:       authorizeRequest.CodeChallenge,
 			codeChallengeMethod: authorizeRequest.CodeChallengeMethod,
@@ -180,6 +183,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 			clientSecret:        registrationResponse.ClientSecret,
 			nonce:               authorizeRequest.Nonce,
 			credential:          credential,
+			authTime:            now,
 		})
 
 		if err != nil {
