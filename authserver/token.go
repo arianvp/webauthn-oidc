@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -115,7 +116,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	}
 
 	if !authorized {
-		ErrUnauthorizedClient.RespondJSON(w)
+		ErrUnauthorizedClient.WithDescription(fmt.Sprintf("%v %s==%s %s==%s", hasBasicAuth, clientID, state.clientID, clientSecret, state.clientSecret)).RespondJSON(w)
 		return
 	}
 
