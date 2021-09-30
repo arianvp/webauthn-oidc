@@ -65,11 +65,11 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 
 	registrationResponse, err := server.RegisterClient(RegistrationRequest{[]string{authorizeRequest.RedirectURI}})
 	if err != nil {
-		ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+		ErrInvalidRequest.WithDescription(err.Error()).RespondJSON(w)
 	}
 
 	if authorizeRequest.ClientID != registrationResponse.ClientID {
-		ErrInvalidRequest.WithDescription("redirect_uri does not match client_id.").RespondRedirect(w, redirectURI, query)
+		ErrInvalidRequest.WithDescription("redirect_uri does not match client_id.").RespondJSON(w)
 		return
 	}
 
