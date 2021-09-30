@@ -2,12 +2,12 @@ package authserver
 
 import (
 	"crypto/ecdsa"
+	"crypto/rsa"
 	"embed"
 	"net/http"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gorilla/sessions"
-	"github.com/hashicorp/cap/oidc"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/json"
 )
@@ -16,13 +16,14 @@ import (
 var content embed.FS
 
 const (
-	openidConfiguration = "/.well-known/openid-configuration"
-	register            = "/register"
-	authorize           = "/authorize"
-	token               = "/token"
-	userinfo            = "/userinfo"
-	wellKnownJwks       = "/.well-known/jwks.json"
-	webFinger           = "/.well-known/webfinger"
+	openidConfiguration      = "/.well-known/openid-configuration"
+	oauthAuthorizationServer = "/.well-known/oauth-authorization-server"
+	register                 = "/register"
+	authorize                = "/authorize"
+	token                    = "/token"
+	userinfo                 = "/userinfo"
+	wellKnownJwks            = "/.well-known/jwks.json"
+	webFinger                = "/.well-known/webfinger"
 )
 
 type OpenidConfiguration struct {
@@ -32,7 +33,7 @@ type OpenidConfiguration struct {
 	TokenEndpoint                     string                          `json:"token_endpoint"`
 	JWKSURI                           string                          `json:"jwks_uri"`
 	UserinfoEndpoint                  string                          `json:"userinfo_endpoint,omitempty"`
-	SupportedAlgs                     []oidc.Alg                      `json:"id_token_signing_alg_values_supported"`
+	SupportedAlgs                     []jose.SignatureAlgorithm       `json:"id_token_signing_alg_values_supported"`
 	SupportedScopes                   []string                        `json:"scopes_supported"`
 	SubjectTypesSupported             []string                        `json:"subject_types_supported"`
 	ResponseTypesSupported            []string                        `json:"response_types_supported"`
@@ -52,9 +53,8 @@ type AuthorizationServer struct {
 
 	codeCache *codeCache
 
-	jwks jose.JSONWebKeySet
-
-	privateKey *ecdsa.PrivateKey
+	publicJWKs  jose.JSONWebKeySet
+	privateJWKs jose.JSONWebKeySet
 
 	config *OpenidConfiguration
 
@@ -62,26 +62,33 @@ type AuthorizationServer struct {
 }
 
 // TODO because we are dynamic we must support implict and code grant
-func New(rpID string, origin string, privateKey *ecdsa.PrivateKey, cookieKeys [][]byte, clientSecretKey []byte) AuthorizationServer {
+func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, privateRSAKey *rsa.PrivateKey, cookieKeys [][]byte, clientSecretKey []byte) AuthorizationServer {
 	server := AuthorizationServer{}
 	server.rpID = rpID
 	server.origin = origin
 	server.codeCache = newCodeCache()
 
-	server.privateKey = privateKey
 	server.clientSecretKey = clientSecretKey
 
 	sessionStore := sessions.NewCookieStore(cookieKeys...)
 	server.sessionStore = sessionStore
 
-	server.jwks.Keys = []jose.JSONWebKey{
-		{
-			Key:       &server.privateKey.PublicKey,
-			KeyID:     "lol", // TODO hash of key!
-			Algorithm: string(jose.ES256),
-			Use:       "sig",
-		},
+	privateECDSAJWK := jose.JSONWebKey{
+		Key:       privateECDSAKey,
+		KeyID:     string(jose.ES256),
+		Algorithm: string(jose.ES256),
+		Use:       "sig",
 	}
+
+	privateRSAJWK := jose.JSONWebKey{
+		Key:       privateRSAKey,
+		KeyID:     string(jose.RS256),
+		Algorithm: string(jose.RS256),
+		Use:       "sig",
+	}
+
+	server.privateJWKs.Keys = []jose.JSONWebKey{privateECDSAJWK, privateRSAJWK}
+	server.publicJWKs.Keys = []jose.JSONWebKey{privateECDSAJWK.Public(), privateRSAJWK.Public()}
 
 	server.config = &OpenidConfiguration{
 		Issuer:                            origin,
@@ -90,7 +97,7 @@ func New(rpID string, origin string, privateKey *ecdsa.PrivateKey, cookieKeys []
 		TokenEndpoint:                     origin + token,
 		JWKSURI:                           origin + wellKnownJwks,
 		UserinfoEndpoint:                  origin + userinfo,
-		SupportedAlgs:                     []oidc.Alg{oidc.EdDSA, oidc.ES256},
+		SupportedAlgs:                     []jose.SignatureAlgorithm{jose.ES256, jose.RS256},
 		SupportedScopes:                   []string{"openid"},
 		SubjectTypesSupported:             []string{"pairwise"},
 		ResponseTypesSupported:            []string{"code"},
@@ -101,6 +108,7 @@ func New(rpID string, origin string, privateKey *ecdsa.PrivateKey, cookieKeys []
 	}
 
 	server.Handle(openidConfiguration, http.HandlerFunc(server.handleOpenidConfiguration))
+	server.Handle(oauthAuthorizationServer, http.HandlerFunc(server.handleOpenidConfiguration))
 	server.Handle(authorize, http.HandlerFunc(server.handleAuthorize))
 	server.Handle(token, http.HandlerFunc(server.handleToken))
 	server.Handle(wellKnownJwks, http.HandlerFunc(server.handleWellknownJwks))
@@ -127,7 +135,7 @@ func (server *AuthorizationServer) handleWellknownJwks(w http.ResponseWriter, re
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(server.jwks); err != nil {
+	if err := json.NewEncoder(w).Encode(server.publicJWKs); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
