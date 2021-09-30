@@ -2,7 +2,6 @@ package authserver
 
 import (
 	"bytes"
-	"encoding/json"
 	"log"
 	"net/http"
 	"net/url"
@@ -73,11 +72,12 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		return
 	}
 
-	session, err := server.sessionStore.Get(req, "webauthn")
+	challengeSession, err := server.sessionStore.Get(req, "webauthn")
 	if err != nil {
 		// non-fatal. resets session
 		log.Print(err)
 	}
+	challengeSession.Options.MaxAge = 0
 
 	switch req.Method {
 	case http.MethodGet:
@@ -87,12 +87,8 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 			return
 		}
 
-		serialized, _ := json.Marshal(&webauthn.SessionData{
-			Challenge: challenge.String(),
-		})
-
-		session.Values["assertion"] = serialized
-		if err := session.Save(req, w); err != nil {
+		challengeSession.Values["challenge"] = challenge.String()
+		if err := challengeSession.Save(req, w); err != nil {
 			ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 			return
 		}
@@ -110,11 +106,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		}
 
 	case http.MethodPost:
-		var sessionData webauthn.SessionData
-		if err := json.Unmarshal(session.Values["assertion"].([]byte), &sessionData); err != nil {
-			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-			return
-		}
+		challenge := challengeSession.Values["challenge"].(string)
 		// If both attestation and assertion are present
 
 		if authorizeRequest.AssertionResponse == "" {
@@ -148,7 +140,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		// local storage. This is not needed for the MVP.
 		// Explicit consent will be asked as attestation is "revealing"
 		// user_verified depends on acr_values
-		// _ = attestationResponse.Verify(sessionData.Challenge, false, server.rpID, server.origin)
+		// _ = attestationResponse.Verify(challenge, false, server.rpID, server.origin)
 
 		// credential, err := server.(sessionData, attestationResponse)
 		credential, err := webauthn.MakeNewCredential(attestationResponse)
@@ -169,7 +161,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		}
 
 		// TODO Relying Party ID
-		if err := assertionResponse.Verify(sessionData.Challenge, server.rpID, server.origin, false, credential.PublicKey); err != nil {
+		if err := assertionResponse.Verify(challenge, server.rpID, server.origin, false, credential.PublicKey); err != nil {
 			ErrRequestUnauthorized.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 			return
 		}
