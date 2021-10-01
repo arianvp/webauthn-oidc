@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"sync"
-	"time"
 
 	"github.com/duo-labs/webauthn/webauthn"
 )
@@ -16,7 +15,7 @@ type state struct {
 	clientID            string
 	clientSecret        string
 	nonce               string
-	authTime            time.Time
+	authTime            int64
 	credential          *webauthn.Credential
 }
 

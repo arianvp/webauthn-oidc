@@ -240,6 +240,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 				return
 			}
 			loginSession.Values["credential"], err = json.Marshal(credential)
+			loginSession.Values["auth_time"] = time.Now().Unix()
 			if err != nil {
 				ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 				return
@@ -254,8 +255,10 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		}
 	}
 
-	// TODO should be stored in login Session...
-	now := time.Now()
+	now, ok := loginSession.Values["auth_time"].(int64)
+	if !ok {
+		ErrInvalidRequest.RespondRedirect(w, redirectURI, query)
+	}
 
 	code, err := server.codeCache.newCode(&state{
 		codeChallenge:       authorizeRequest.CodeChallenge,

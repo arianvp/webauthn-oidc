@@ -43,11 +43,11 @@ const (
 )
 
 type OpenIDClaims struct {
-	Nonce    string           `json:"nonce,omitempty"`
-	AtHash   string           `json:"at_hash"`
-	CHash    string           `json:"c_hash,omitempty"`
-	AMR      []AMR            `json:"amr,omitmepty"`
-	AuthTime *jwt.NumericDate `json:"auth_time,omitempty"`
+	Nonce    string          `json:"nonce,omitempty"`
+	AtHash   string          `json:"at_hash"`
+	CHash    string          `json:"c_hash,omitempty"`
+	AMR      []AMR           `json:"amr,omitmepty"`
+	AuthTime jwt.NumericDate `json:"auth_time,omitempty"`
 }
 
 func TokenRequestFromValues(values url.Values) TokenRequest {
@@ -182,7 +182,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		CHash:  cHash,
 		// TODO populate based on attestation
 		AMR:      []AMR{HardwareKey, MultiFactor},
-		AuthTime: jwt.NewNumericDate(state.authTime),
+		AuthTime: jwt.NumericDate(state.authTime),
 	}
 
 	idToken, err := jwt.Signed(signer).Claims(claims).Claims(openIDClaims).CompactSerialize()
