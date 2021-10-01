@@ -3,7 +3,6 @@ package authserver
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -223,10 +222,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	if credential == nil {
 		switch req.Method {
 		case http.MethodGet:
-			log.Println("wtf")
 			BeginAuthenticate(w, req, challengeSession, authorizeRequest, redirectURI, query)
-			return
-
 		case http.MethodPost:
 			challenge, ok := challengeSession.Values["challenge"].(string)
 			if !ok {
