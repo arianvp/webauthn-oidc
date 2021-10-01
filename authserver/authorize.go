@@ -186,12 +186,13 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	var maxAge int64
 	if authorizeRequest.MaxAge == "" {
 		maxAge = int64(24 * time.Hour)
-	}
-	// TODO push parsing logic to the FromValues function
-	maxAge, err = strconv.ParseInt(authorizeRequest.MaxAge, 10, 32)
-	if err != nil {
-		ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-		return
+	} else {
+		// TODO push parsing logic to the FromValues function
+		maxAge, err = strconv.ParseInt(authorizeRequest.MaxAge, 10, 32)
+		if err != nil {
+			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+			return
+		}
 	}
 	loginSession.Options.MaxAge = int(maxAge)
 	challengeSession, err := server.sessionStore.Get(req, "challengeSession")
