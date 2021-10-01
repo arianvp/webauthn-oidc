@@ -11,6 +11,7 @@ import (
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/webauthn"
+	"github.com/gorilla/sessions"
 )
 
 type AuthorizeRequest struct {
@@ -45,6 +46,89 @@ func AuthorizeRequestFromValues(values url.Values) AuthorizeRequest {
 		AttestationResponse: values.Get("attestation_response"),
 		AssertionResponse:   values.Get("assertion_response"),
 	}
+}
+
+func BeginAuthenticate(w http.ResponseWriter, req *http.Request, session *sessions.Session, authorizeRequest AuthorizeRequest, redirectURI *url.URL, query url.Values) {
+	challenge, err := protocol.CreateChallenge()
+	if err != nil {
+		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+		return
+	}
+
+	session.Values["challenge"] = challenge.String()
+	if err := session.Save(req, w); err != nil {
+		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+		return
+	}
+
+	template := template.New("authorize.html")
+	template, err = template.ParseFS(content, "authorize.html")
+	if err != nil {
+		panic(err)
+	}
+	if err := template.Execute(w, struct {
+		Challenge protocol.Challenge
+		ClientID  string
+	}{challenge, authorizeRequest.ClientID}); err != nil {
+		panic(err)
+	}
+}
+
+func FinishAuthenticate(session *sessions.Session, authorizeRequest AuthorizeRequest, redirectURI *url.URL, query url.Values, rpID, origin string) (*webauthn.Credential, *RFC6749Error) {
+	challenge := session.Values["challenge"].(string)
+	// If both attestation and assertion are present
+
+	if authorizeRequest.AssertionResponse == "" {
+		return nil, ErrInvalidRequest.WithDescription("Assertion missing")
+	}
+
+	if authorizeRequest.AttestationResponse == "" {
+		return nil, ErrInvalidRequest.WithDescription("Attestation missing")
+	}
+
+	var (
+		attestationResponse *protocol.ParsedCredentialCreationData
+		assertionResponse   *protocol.ParsedCredentialAssertionData
+	)
+
+	attestationResponse, err := protocol.ParseCredentialCreationResponseBody(strings.NewReader(authorizeRequest.AttestationResponse))
+	if err != nil {
+		return nil, ErrInvalidRequest.WithDescription(err.Error())
+	}
+
+	// TODO: Only works if attestation response was created in the same step as
+	// assertion What we could do is store an initial signed attestation in a
+	// cookie.  This signature will be valid for a long period of time and
+	// attests that we performed attestation.  This can then be presented to us
+	// to  mint an ID token with attestation data. However; for now, we don't
+	// "care", and accept anything. So ignore the result. This will require a
+	// dedicated html page for registration that stores it into the cookie /
+	// local storage. This is not needed for the MVP.
+	// Explicit consent will be asked as attestation is "revealing"
+	// user_verified depends on acr_values
+	// _ = attestationResponse.Verify(challenge, false, server.rpID, server.origin)
+
+	// credential, err := server.(sessionData, attestationResponse)
+	credential, err := webauthn.MakeNewCredential(attestationResponse)
+	if err != nil {
+		return nil, ErrInvalidRequest.WithDescription(err.Error())
+	}
+
+	assertionResponse, err = protocol.ParseCredentialRequestResponseBody(strings.NewReader(authorizeRequest.AssertionResponse))
+	if err != nil {
+		return nil, ErrInvalidRequest.WithDescription("Invalid assertion")
+	}
+
+	if !bytes.Equal(credential.ID, assertionResponse.RawID) {
+		return nil, ErrInvalidRequest.WithDescription("Unknown credential id")
+	}
+
+	// TODO Relying Party ID
+	if err := assertionResponse.Verify(challenge, rpID, origin, false, credential.PublicKey); err != nil {
+		return nil, ErrRequestUnauthorized.WithDescription(err.Error())
+	}
+	return credential, nil
+
 }
 
 func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *http.Request) {
@@ -95,109 +179,33 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		return
 	}
 
-	if authorizeRequest.Prompt == "none" {
-		// TODO this should not return an error once we have session cookies implemented
-		ErrInteractionRequired.RespondRedirect(w, redirectURI, query)
-		return
-	}
-
-	challengeSession, err := server.sessionStore.Get(req, "webauthn")
+	session, err := server.sessionStore.Get(req, "webauthn")
 	if err != nil {
 		// non-fatal. resets session
 		log.Print(err)
 	}
-	challengeSession.Options.MaxAge = 0
+
+	// TODO check if usr logged in
+	if authorizeRequest.Prompt == "none" {
+		ErrInteractionRequired.RespondRedirect(w, redirectURI, query)
+		return
+	}
 
 	switch req.Method {
 	case http.MethodGet:
-		challenge, err := protocol.CreateChallenge()
-		if err != nil {
-			ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-			return
-		}
-
-		challengeSession.Values["challenge"] = challenge.String()
-		if err := challengeSession.Save(req, w); err != nil {
-			ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-			return
-		}
-
-		template := template.New("authorize.html")
-		template, err = template.ParseFS(content, "authorize.html")
-		if err != nil {
-			panic(err)
-		}
-		if err := template.Execute(w, struct {
-			Challenge protocol.Challenge
-			ClientID  string
-		}{challenge, authorizeRequest.ClientID}); err != nil {
-			panic(err)
-		}
+		BeginAuthenticate(w, req, session, authorizeRequest, redirectURI, query)
+		return
 
 	case http.MethodPost:
-		challenge := challengeSession.Values["challenge"].(string)
-		// If both attestation and assertion are present
-
-		if authorizeRequest.AssertionResponse == "" {
-			ErrInvalidRequest.WithDescription("Assertion missing").RespondRedirect(w, redirectURI, query)
-			return
-		}
-
-		if authorizeRequest.AttestationResponse == "" {
-			ErrInvalidRequest.WithDescription("Attestation missing").RespondRedirect(w, redirectURI, query)
-			return
-		}
-
-		var (
-			attestationResponse *protocol.ParsedCredentialCreationData
-			assertionResponse   *protocol.ParsedCredentialAssertionData
-		)
-
-		attestationResponse, err = protocol.ParseCredentialCreationResponseBody(strings.NewReader(authorizeRequest.AttestationResponse))
+		credential, err := FinishAuthenticate(session, authorizeRequest, redirectURI, query, server.rpID, server.origin)
 		if err != nil {
-			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-			return
-		}
-
-		// TODO: Only works if attestation response was created in the same step as
-		// assertion What we could do is store an initial signed attestation in a
-		// cookie.  This signature will be valid for a long period of time and
-		// attests that we performed attestation.  This can then be presented to us
-		// to  mint an ID token with attestation data. However; for now, we don't
-		// "care", and accept anything. So ignore the result. This will require a
-		// dedicated html page for registration that stores it into the cookie /
-		// local storage. This is not needed for the MVP.
-		// Explicit consent will be asked as attestation is "revealing"
-		// user_verified depends on acr_values
-		// _ = attestationResponse.Verify(challenge, false, server.rpID, server.origin)
-
-		// credential, err := server.(sessionData, attestationResponse)
-		credential, err := webauthn.MakeNewCredential(attestationResponse)
-		if err != nil {
-			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-			return
-		}
-
-		assertionResponse, err = protocol.ParseCredentialRequestResponseBody(strings.NewReader(authorizeRequest.AssertionResponse))
-		if err != nil {
-			ErrInvalidRequest.WithDescription("Invalid assertion").RespondRedirect(w, redirectURI, query)
-			return
-		}
-
-		if !bytes.Equal(credential.ID, assertionResponse.RawID) {
-			ErrInvalidRequest.WithDescription("Unknown credential id").RespondRedirect(w, redirectURI, query)
-			return
-		}
-
-		// TODO Relying Party ID
-		if err := assertionResponse.Verify(challenge, server.rpID, server.origin, false, credential.PublicKey); err != nil {
-			ErrRequestUnauthorized.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+			err.RespondRedirect(w, redirectURI, query)
 			return
 		}
 
 		now := time.Now()
 
-		code, err := server.codeCache.newCode(&state{
+		code, err2 := server.codeCache.newCode(&state{
 			codeChallenge:       authorizeRequest.CodeChallenge,
 			codeChallengeMethod: authorizeRequest.CodeChallengeMethod,
 			redirectURI:         authorizeRequest.RedirectURI,
@@ -208,7 +216,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 			authTime:            now,
 		})
 
-		if err != nil {
+		if err2 != nil {
 			ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 			return
 		}
