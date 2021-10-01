@@ -245,14 +245,16 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 				ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 				return
 			}
-			if err := loginSession.Save(req, w); err != nil {
-				ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-				return
-			}
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+	}
+
+	// max_age might have changed
+	if err := loginSession.Save(req, w); err != nil {
+		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+		return
 	}
 
 	now, ok := loginSession.Values["auth_time"].(int64)
