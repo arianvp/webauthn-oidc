@@ -190,7 +190,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	// TODO push parsing logic to the FromValues function
 	maxAge, err = strconv.ParseInt(authorizeRequest.MaxAge, 10, 32)
 	if err != nil {
-		ErrInvalidRequest.RespondRedirect(w, redirectURI, query)
+		ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 		return
 	}
 	loginSession.Options.MaxAge = int(maxAge)
@@ -203,7 +203,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		credential = nil
 	} else {
 		if err := json.Unmarshal(rawCredential, credential); err != nil {
-			ErrInvalidRequest.RespondRedirect(w, redirectURI, query)
+			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 			return
 		}
 	}
