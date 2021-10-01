@@ -2,9 +2,11 @@ package authserver
 
 import (
 	"bytes"
+	"encoding/json"
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -26,6 +28,7 @@ type AuthorizeRequest struct {
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 	CodeChallenge       string `json:"code_challenge,omitmepty"`
 	Nonce               string `json:"nonce,omitmepty"`
+	MaxAge              string `json:"max_age,omitmepty"`
 	AttestationResponse string `json:"attestation_response,omitempty"`
 	AssertionResponse   string `json:"assertion_response,omitempty"`
 }
@@ -43,6 +46,7 @@ func AuthorizeRequestFromValues(values url.Values) AuthorizeRequest {
 		CodeChallengeMethod: values.Get("code_challenge_method"),
 		CodeChallenge:       values.Get("code_challenge"),
 		Nonce:               values.Get("nonce"),
+		MaxAge:              values.Get("max_age"),
 		AttestationResponse: values.Get("attestation_response"),
 		AssertionResponse:   values.Get("assertion_response"),
 	}
@@ -74,8 +78,7 @@ func BeginAuthenticate(w http.ResponseWriter, req *http.Request, session *sessio
 	}
 }
 
-func FinishAuthenticate(session *sessions.Session, authorizeRequest AuthorizeRequest, redirectURI *url.URL, query url.Values, rpID, origin string) (*webauthn.Credential, *RFC6749Error) {
-	challenge := session.Values["challenge"].(string)
+func FinishAuthenticate(challenge string, authorizeRequest AuthorizeRequest, redirectURI *url.URL, query url.Values, rpID, origin string) (*webauthn.Credential, *RFC6749Error) {
 	// If both attestation and assertion are present
 
 	if authorizeRequest.AssertionResponse == "" {
@@ -179,53 +182,88 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		return
 	}
 
-	session, err := server.sessionStore.Get(req, "webauthn")
+	loginSession, err := server.sessionStore.Get(req, "loginSession")
+	var maxAge int64
+	if authorizeRequest.MaxAge == "" {
+		maxAge = int64(24 * time.Hour)
+	}
+	// TODO push parsing logic to the FromValues function
+	maxAge, err = strconv.ParseInt(authorizeRequest.MaxAge, 10, 32)
 	if err != nil {
-		// non-fatal. resets session
-		log.Print(err)
+		ErrInvalidRequest.RespondRedirect(w, redirectURI, query)
+		return
+	}
+	loginSession.Options.MaxAge = int(maxAge)
+	challengeSession, err := server.sessionStore.Get(req, "challengeSession")
+	challengeSession.Options.MaxAge = 0
+
+	var credential *webauthn.Credential = new(webauthn.Credential)
+	rawCredential, ok := loginSession.Values["credential"].([]byte)
+	if !ok {
+		credential = nil
+	} else {
+		if err := json.Unmarshal(rawCredential, credential); err != nil {
+			ErrInvalidRequest.RespondRedirect(w, redirectURI, query)
+			return
+		}
 	}
 
-	// TODO check if usr logged in
-	if authorizeRequest.Prompt == "none" {
+	if credential == nil && authorizeRequest.Prompt == "none" {
 		ErrInteractionRequired.RespondRedirect(w, redirectURI, query)
 		return
 	}
 
-	switch req.Method {
-	case http.MethodGet:
-		BeginAuthenticate(w, req, session, authorizeRequest, redirectURI, query)
-		return
+	if credential != nil && authorizeRequest.Prompt == "login" {
+		credential = nil
+	}
 
-	case http.MethodPost:
-		credential, err := FinishAuthenticate(session, authorizeRequest, redirectURI, query, server.rpID, server.origin)
-		if err != nil {
-			err.RespondRedirect(w, redirectURI, query)
+	if credential == nil {
+		switch req.Method {
+		case http.MethodGet:
+			log.Println("wtf")
+			BeginAuthenticate(w, req, challengeSession, authorizeRequest, redirectURI, query)
+			return
+
+		case http.MethodPost:
+			challenge := challengeSession.Values["challenge"].(string)
+			var oauthError *RFC6749Error
+			credential, oauthError = FinishAuthenticate(challenge, authorizeRequest, redirectURI, query, server.rpID, server.origin)
+			if oauthError != nil {
+				oauthError.RespondRedirect(w, redirectURI, query)
+				return
+			}
+			loginSession.Values["credential"], err = json.Marshal(credential)
+			if err != nil {
+				ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+				return
+			}
+			if err := loginSession.Save(req, w); err != nil {
+				ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+				return
+			}
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+	}
+	now := time.Now()
 
-		now := time.Now()
-
-		code, err2 := server.codeCache.newCode(&state{
-			codeChallenge:       authorizeRequest.CodeChallenge,
-			codeChallengeMethod: authorizeRequest.CodeChallengeMethod,
-			redirectURI:         authorizeRequest.RedirectURI,
-			clientID:            authorizeRequest.ClientID,
-			clientSecret:        registrationResponse.ClientSecret,
-			nonce:               authorizeRequest.Nonce,
-			credential:          credential,
-			authTime:            now,
-		})
-
-		if err2 != nil {
-			ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-			return
-		}
-		query.Set("code", code)
-		redirectURI.RawQuery = query.Encode()
-		w.Header().Set("Location", redirectURI.String())
-		w.WriteHeader(http.StatusFound)
-	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
+	code, err := server.codeCache.newCode(&state{
+		codeChallenge:       authorizeRequest.CodeChallenge,
+		codeChallengeMethod: authorizeRequest.CodeChallengeMethod,
+		redirectURI:         authorizeRequest.RedirectURI,
+		clientID:            authorizeRequest.ClientID,
+		clientSecret:        registrationResponse.ClientSecret,
+		nonce:               authorizeRequest.Nonce,
+		credential:          credential,
+		authTime:            now,
+	})
+	if err != nil {
+		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 		return
 	}
+	query.Set("code", code)
+	redirectURI.RawQuery = query.Encode()
+	w.Header().Set("Location", redirectURI.String())
+	w.WriteHeader(http.StatusFound)
 }
