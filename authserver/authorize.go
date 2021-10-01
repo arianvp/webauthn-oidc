@@ -195,7 +195,9 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		}
 	}
 	loginSession.Options.MaxAge = int(maxAge)
+	loginSession.Options.SameSite = http.SameSiteLaxMode
 	challengeSession, err := server.sessionStore.Get(req, "challengeSession")
+	challengeSession.Options.SameSite = http.SameSiteStrictMode
 	challengeSession.Options.MaxAge = 0
 
 	var credential *webauthn.Credential = new(webauthn.Credential)
@@ -226,7 +228,11 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 			return
 
 		case http.MethodPost:
-			challenge := challengeSession.Values["challenge"].(string)
+			challenge, ok := challengeSession.Values["challenge"].(string)
+			if !ok {
+				ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+				return
+			}
 			var oauthError *RFC6749Error
 			credential, oauthError = FinishAuthenticate(challenge, authorizeRequest, redirectURI, query, server.rpID, server.origin)
 			if oauthError != nil {
@@ -247,6 +253,8 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 			return
 		}
 	}
+
+	// TODO should be stored in login Session...
 	now := time.Now()
 
 	code, err := server.codeCache.newCode(&state{

@@ -71,7 +71,6 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, privateR
 	server.clientSecretKey = clientSecretKey
 
 	sessionStore := sessions.NewCookieStore(cookieKeys...)
-	sessionStore.Options.SameSite = http.SameSiteStrictMode
 	sessionStore.Options.HttpOnly = true
 	sessionStore.Options.Secure = true
 	server.sessionStore = sessionStore
