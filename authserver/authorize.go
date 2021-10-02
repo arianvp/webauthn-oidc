@@ -210,15 +210,11 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		}
 	}
 
-	authTime, ok := loginSession.Values["auth_time"].(int64)
-	if !ok {
-		ErrInvalidRequest.RespondRedirect(w, redirectURI, query)
-	}
-
+	authTime, _ := loginSession.Values["auth_time"].(int64)
 	now := time.Now().Unix()
 
 	// Expired
-	if authTime+maxAge > now {
+	if authTime+maxAge <= now {
 		credential = nil
 	}
 
