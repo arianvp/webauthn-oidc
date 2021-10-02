@@ -210,6 +210,18 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		}
 	}
 
+	authTime, ok := loginSession.Values["auth_time"].(int64)
+	if !ok {
+		ErrInvalidRequest.RespondRedirect(w, redirectURI, query)
+	}
+
+	now := time.Now().Unix()
+
+	// Expired
+	if authTime+maxAge > now {
+		credential = nil
+	}
+
 	if credential == nil && authorizeRequest.Prompt == "none" {
 		ErrInteractionRequired.RespondRedirect(w, redirectURI, query)
 		return
@@ -253,11 +265,6 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		return
 	}
 
-	now, ok := loginSession.Values["auth_time"].(int64)
-	if !ok {
-		ErrInvalidRequest.RespondRedirect(w, redirectURI, query)
-	}
-
 	code, err := server.codeCache.newCode(&state{
 		codeChallenge:       authorizeRequest.CodeChallenge,
 		codeChallengeMethod: authorizeRequest.CodeChallengeMethod,
@@ -266,7 +273,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		clientSecret:        registrationResponse.ClientSecret,
 		nonce:               authorizeRequest.Nonce,
 		credential:          credential,
-		authTime:            now,
+		authTime:            authTime,
 	})
 	if err != nil {
 		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
