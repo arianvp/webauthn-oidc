@@ -244,7 +244,9 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 				return
 			}
 			loginSession.Values["credential"], err = json.Marshal(credential)
-			loginSession.Values["auth_time"] = time.Now().Unix()
+			authTime = time.Now().Unix()
+			loginSession.Values["auth_time"] = authTime
+
 			if err != nil {
 				ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 				return
