@@ -1,5 +1,7 @@
 # Webauthn-oidc
 
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/arianvp/webauthn-oidc)
+
 Webauthn-oidc is a very minimal OIDC authorization server that only supports
 webauthn for authentication.  This can be used to bootstrap a secure-by-design
 passwordless identity system.
