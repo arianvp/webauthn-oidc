@@ -25,9 +25,9 @@ type AuthorizeRequest struct {
 	State               string `json:"state,omitempty"`
 	Scope               string `json:"scope,omitempty"`
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
-	CodeChallenge       string `json:"code_challenge,omitmepty"`
-	Nonce               string `json:"nonce,omitmepty"`
-	MaxAge              string `json:"max_age,omitmepty"`
+	CodeChallenge       string `json:"code_challenge,omitempty"`
+	Nonce               string `json:"nonce,omitempty"`
+	MaxAge              string `json:"max_age,omitempty"`
 	AttestationResponse string `json:"attestation_response,omitempty"`
 	AssertionResponse   string `json:"assertion_response,omitempty"`
 }
@@ -182,6 +182,10 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	}
 
 	loginSession, err := server.sessionStore.Get(req, "loginSession")
+	if err != nil {
+		ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+		return
+	}
 	var maxAge int64
 	if authorizeRequest.MaxAge == "" {
 		maxAge = int64(24 * time.Hour)

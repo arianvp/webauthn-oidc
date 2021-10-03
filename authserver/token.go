@@ -14,15 +14,11 @@ import (
 )
 
 type TokenRequest struct {
-	// a time-bound use-once code
-	Code string
-	// must check with previous code_challenge in authorize step
-	CodeVerifier string
-	GrantType    string
-	// must check with previous redirect_uri in authorize step
-	RedirectURI string
-	// must check with previous client_id in authorize stestirng
-	ClientID string
+	Code         string // a time-bound use-once code
+	CodeVerifier string // must check with previous code_challenge in authorize step
+	GrantType    string // must check with previous redirect_uri in authorize step
+	RedirectURI  string // must check with previous client_id in authorize stestirng
+	ClientID     string
 }
 
 type TokenResponse struct {
@@ -46,7 +42,7 @@ type OpenIDClaims struct {
 	Nonce    string          `json:"nonce,omitempty"`
 	AtHash   string          `json:"at_hash"`
 	CHash    string          `json:"c_hash,omitempty"`
-	AMR      []AMR           `json:"amr,omitmepty"`
+	AMR      []AMR           `json:"amr,omitempty"`
 	AuthTime jwt.NumericDate `json:"auth_time,omitempty"`
 }
 
@@ -122,7 +118,6 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	}
 
 	now := time.Now()
-	expiresIn := jwt.NewNumericDate(now.Add(24 * time.Hour))
 
 	hasher := sha256.New()
 	hasher.Write(state.credential.ID)
@@ -139,11 +134,13 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 
 	jti := base64.RawURLEncoding.EncodeToString(rawJTI)
 
+	accessTokenEpiresIn := jwt.NewNumericDate(now.Add(10 * time.Minute))
+
 	claims := jwt.Claims{
 		Issuer:    server.origin,
 		Subject:   subject,
 		Audience:  []string{server.origin},
-		Expiry:    expiresIn,
+		Expiry:    accessTokenEpiresIn,
 		NotBefore: jwt.NewNumericDate(now),
 		IssuedAt:  jwt.NewNumericDate(now),
 		ID:        jti,
@@ -170,17 +167,16 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		Issuer:    server.origin,
 		Subject:   subject,
 		Audience:  []string{state.clientID},
-		Expiry:    expiresIn,
+		Expiry:    jwt.NewNumericDate(now.Add(10 * time.Hour)),
 		NotBefore: jwt.NewNumericDate(now),
 		IssuedAt:  jwt.NewNumericDate(now),
 		ID:        jti,
 	}
 
 	openIDClaims := OpenIDClaims{
-		Nonce:  state.nonce,
-		AtHash: atHash,
-		CHash:  cHash,
-		// TODO populate based on attestation
+		Nonce:    state.nonce,
+		AtHash:   atHash,
+		CHash:    cHash,
 		AMR:      []AMR{HardwareKey, MultiFactor},
 		AuthTime: jwt.NumericDate(state.authTime),
 	}
@@ -194,7 +190,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		AccessToken: accessToken,
 		IDToken:     idToken,
 		TokenType:   "Bearer",
-		ExpiresIn:   expiresIn,
+		ExpiresIn:   accessTokenEpiresIn,
 	}
 
 	w.Header().Add("Content-Type", "application/json")

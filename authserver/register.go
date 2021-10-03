@@ -53,18 +53,6 @@ func (server *AuthorizationServer) handleRegister(w http.ResponseWriter, req *ht
 		return
 	}
 
-	// TODO limit size?
-	var redirectURIs []*url.URL
-	for _, rawurl := range registrationRequest.RedirectURIs {
-		url, err := url.Parse(rawurl)
-		if err != nil {
-			ErrInvalidRedirectURI.WithDescription(err.Error()).RespondJSON(w)
-			return
-
-		}
-		redirectURIs = append(redirectURIs, url)
-	}
-
 	registrationResponse, err := server.RegisterClient(registrationRequest)
 	if err != nil {
 		ErrorToRFC6749Error(err).RespondJSON(w)

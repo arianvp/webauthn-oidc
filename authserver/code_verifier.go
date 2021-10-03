@@ -29,7 +29,7 @@ func (v *codeVerifier) Verify() error {
 		return err
 	}
 	if expectedChallenge != v.challenge {
-		return fmt.Errorf("Expected %s but got %s", expectedChallenge, v.challenge)
+		return fmt.Errorf("expected %s but got %s", expectedChallenge, v.challenge)
 	}
 	return nil
 }
