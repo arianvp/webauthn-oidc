@@ -91,6 +91,28 @@ type ClientData struct {
 	TokenBinding *TokenBinding `json:"tokenBinding"`
 }
 
+type AuthenticatorAssertionResponse struct {
+	AuthenticatorResponse
+	Signature  []byte
+	UserHandle []byte
+}
+
+// returned from navigator.credential.create({publicKey:{...}})
+type CreatePublicKeyCredential struct {
+	Type     string                           `json:"type"`
+	Id       string                           `json:"id"`
+	RawId    []byte                           `json:"rawId"`
+	Response AuthenticatorAttestationResponse `json:"response"`
+}
+
+// returned from navigator.credential.get({publicKey:{...}})
+type GetPublicKeyCredential struct {
+	Type     string                         `json:"type"`
+	Id       string                         `json:"id"`
+	RawId    []byte                         `json:"rawId"`
+	Response AuthenticatorAssertionResponse `json:"response"`
+}
+
 func (r *AuthenticatorResponse) ParseClientData() (*ClientData, error) {
 	var data ClientData
 	err := json.Unmarshal(r.ClientDataJSON, &data)
@@ -115,12 +137,6 @@ func (r *AuthenticatorAttestationResponse) ParseClientData() (*ClientData, error
 	return clientData, nil
 }
 
-type AuthenticatorAssertionResponse struct {
-	AuthenticatorResponse
-	Signature  []byte
-	UserHandle []byte
-}
-
 func (r *AuthenticatorAssertionResponse) ParseClientData() (*ClientData, error) {
 	clientData, err := r.AuthenticatorResponse.ParseClientData()
 	if err != nil {
@@ -132,37 +148,39 @@ func (r *AuthenticatorAssertionResponse) ParseClientData() (*ClientData, error) 
 	return clientData, nil
 }
 
-func (r *AuthenticatorResponse) Verify(challenge string, rpID []byte, origin string, verifyUser bool) error {
-	clientData, err := r.ParseClientData()
-	if err != nil {
+func (r *AuthenticatorResponse) Verify(typ, challenge, rpID, origin string, verifyUser bool) error {
+	var clientData ClientData
+	if err := json.Unmarshal(r.ClientDataJSON, &clientData); err != nil {
 		return err
 	}
+	if clientData.Type != typ {
+		return errors.New("type mismatch")
+	}
 	if clientData.Challenge != challenge {
-		return errors.New("Challenge mismatch")
+		return errors.New("challenge mismatch")
 	}
 	if clientData.Origin != origin {
-		return errors.New("Origin mismatch")
-	}
-	if clientData.Origin != origin {
-		return errors.New("Origin mismatch")
+		return errors.New("origin mismatch")
 	}
 	var authentiatorData AuthenticatorData
 	if err := ReadAuthenticatorData(bytes.NewReader(r.AuthenticatorData), &authentiatorData); err != nil {
 		return err
 	}
-	if authentiatorData.RPIDHash != sha256.Sum256(rpID) {
+	if authentiatorData.RPIDHash != sha256.Sum256([]byte(rpID)) {
 		return errors.New("rpID hash mismatch")
 	}
-
 	if verifyUser && authentiatorData.Flags&FlagUserVerified == 0 {
-		return errors.New("User not verified")
+		return errors.New("user not verified")
 	}
 	return nil
 }
 
-func (assertion *AuthenticatorAssertionResponse) Verify(challenge string, rpID []byte, origin string, verifyUser bool, attestation *AuthenticatorAttestationResponse) error {
-	err := assertion.AuthenticatorResponse.Verify(challenge, rpID, origin, verifyUser)
-	if err != nil {
+func (attestation *AuthenticatorAttestationResponse) Verify(challenge, rpID, origin string, verifyUser bool) error {
+	return attestation.AuthenticatorResponse.Verify("webauthn.create", challenge, rpID, origin, verifyUser)
+}
+
+func (assertion *AuthenticatorAssertionResponse) Verify(challenge, rpID, origin string, verifyUser bool, attestation *AuthenticatorAttestationResponse) error {
+	if err := assertion.AuthenticatorResponse.Verify("webauthn.get", challenge, rpID, origin, verifyUser); err != nil {
 		return err
 	}
 	publicKey, err := attestation.ParsePublicKey()
@@ -191,7 +209,7 @@ func (alg COSEAlgorithmIdentifier) Hash() crypto.Hash {
 	case ES512:
 		return crypto.SHA512
 	default:
-		panic("Should never happen")
+		panic("should never happen")
 	}
 }
 
@@ -208,7 +226,7 @@ func checkSignature(alg COSEAlgorithmIdentifier, signed, signature []byte, publi
 		case RS256:
 			return rsa.VerifyPKCS1v15(pub, hashType, signed, signature)
 		default:
-			return errors.New("Unsupported alg")
+			return errors.New("rsa: unsupported alg")
 		}
 	case *ecdsa.PublicKey:
 		switch alg {
@@ -217,17 +235,17 @@ func checkSignature(alg COSEAlgorithmIdentifier, signed, signature []byte, publi
 				return errors.New("ecdsa: Invalid signature")
 			}
 		default:
-			return errors.New("Unsupported alg")
+			return errors.New("ecdsa: unsupported alg")
 		}
 	case ed25519.PublicKey:
 		switch alg {
 		case EdDSA:
 			if !ed25519.Verify(pub, signed, signature) {
-				return errors.New("ed25519: Invalid signature")
+				return errors.New("ed25519: invalid signature")
 			}
 		}
 	default:
-		return errors.New("Unsupported key")
+		return errors.New("unsupported public key")
 	}
 	return nil
 }
