@@ -1,6 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 
+<!-- 
+
+Copyright (c) 2021 by neil kalman (https://codepen.io/thatkookooguy/pen/jzRrqE)
+Fork of an original work YubiKey Login (https://codepen.io/wtfaremyinitials/pen/obWwdW
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+-->
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width , initial-scale=1.0">
@@ -13,39 +25,93 @@
 
 <body>
   <div class="container">
-    <div id="alert-placeholder">
-
-    </div>
-
-    <form name="loginform" id="loginform" method="POST">
-      <fieldset id="register-fieldset">
-        <legend>Credential</legend>
-        <div class="form-group">
-          <label for="">Attestation mode</label>
-          <select class="form-control" name="" id="">
-            <option selected>None</option>
-            <option>Indirect</option>
-            <option>Direct</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <div class="form-check">
-            <label class="form-check-label">
-              <input type="checkbox" class="form-check-input" name="" id="" value="checkedValue" checked>
-              Require pin or biometric for login
-            </label>
+    <div class="mt-5 row align-items-center justify-content-center">
+      <div class="col-3">
+        <div class="card bg-dark text-light">
+          <svg height="10rem" class="card-img-top" viewBox="-40 0 236 164" version="1.1"
+            xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+            xmlns:sketch="http://www.bohemiancoding.com/sketch/ns">
+            <defs>
+              <filter x="-50%" y="-50%" width="200%" height="200%" filterUnits="objectBoundingBox" id="filter-1">
+                <feOffset dx="0" dy="2" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+                <feGaussianBlur stdDeviation="2" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+                <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.35 0" in="shadowBlurOuter1"
+                  type="matrix" result="shadowMatrixOuter1"></feColorMatrix>
+                <feMerge>
+                  <feMergeNode in="shadowMatrixOuter1"></feMergeNode>
+                  <feMergeNode in="SourceGraphic"></feMergeNode>
+                </feMerge>
+              </filter>
+              <rect id="path-2" x="0" y="0" width="231" height="161"></rect>
+            </defs>
+            <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" sketch:type="MSPage"
+              transform="translate(-45, -118)">
+              <g id="Retina-Macbook-Copy-5" sketch:type="MSArtboardGroup">
+                <g id="Demo" sketch:type="MSLayerGroup" transform="translate(49.000000, 119.000000)">
+                  <mask id="mask-3" sketch:name="Mask" fill="white">
+                    <use xlink:href="#path-2"></use>
+                  </mask>
+                  <g id="Image" mask="url(#mask-3)" sketch:type="MSShapeGroup">
+                    <g transform="translate(10.000000, -137.000000)">
+                      <g id="yubikey-identifier">
+                        <path
+                          d="M95.4914089,183.278351 L92.0996564,183.278351 L92.0996564,148.230241 C92.0996564,146.453608 90.6460481,145 88.8694158,145 L52.8522337,145 C51.0756014,145 49.6219931,146.453608 49.6219931,148.230241 L49.6219931,183.278351 L46.2302405,183.278351 C44.4536082,183.278351 43,184.731959 43,186.508591 L43,282.769759 C43,284.546392 44.4536082,286 46.2302405,286 L95.652921,286 C97.4295533,286 98.8831615,284.546392 98.8831615,282.769759 L98.8831615,186.508591 C98.7216495,184.731959 97.2680412,183.278351 95.4914089,183.278351 L95.4914089,183.278351 Z"
+                          id="Key-Icon" fill="#000000"
+                          transform="translate(70.941581, 215.500000) rotate(-270.000000) translate(-70.941581, -215.500000) ">
+                        </path>
+                        <path
+                          d="M105,200 L120,200 L120,205 L105,205 L105,200 Z M105,209 L120,209 L120,214 L105,214 L105,209 Z M105,218 L120,218 L120,223 L105,223 L105,218 Z M105,227 L120,227 L120,232 L105,232 L105,227 Z"
+                          id="Rectangle-19" fill="#FFE00A"></path>
+                        <ellipse id="Oval-10" fill="#FFE00A" cx="56.9700003" cy="215.97" rx="13.9700003"
+                          ry="13.9700003">
+                        </ellipse>
+                      </g>
+                      <rect id="Rectangle-17" fill="#D8D8D8" x="110" y="150" width="162" height="160" rx="10"></rect>
+                      <rect id="Rectangle-17-Copy" fill="#AFAFAF" x="110" y="0" width="162" height="150" rx="10"></rect>
+                      <rect id="Rectangle-24" fill="#000000" x="120" y="184" width="33" height="13" rx="3"></rect>
+                      <rect id="Rectangle-24-Copy" fill="#000000" x="158" y="184" width="33" height="13" rx="3"></rect>
+                      <rect id="Rectangle-24-Copy-2" fill="#000000" x="196" y="184" width="33" height="13" rx="3">
+                      </rect>
+                      <rect id="Rectangle-27" fill="#000000" x="120" y="202" width="28" height="26" rx="3"></rect>
+                      <rect id="Rectangle-27-Copy-4" fill="#000000" x="120" y="233" width="47" height="26" rx="3">
+                      </rect>
+                      <rect id="Rectangle-27-Copy-7" fill="#000000" x="120" y="264" width="61" height="26" rx="3">
+                      </rect>
+                      <rect id="Rectangle-27-Copy" fill="#000000" x="153" y="202" width="28" height="26" rx="3"></rect>
+                      <rect id="Rectangle-27-Copy-5" fill="#000000" x="172" y="233" width="28" height="26" rx="3">
+                      </rect>
+                      <rect id="Rectangle-27-Copy-8" fill="#000000" x="186" y="264" width="28" height="26" rx="3">
+                      </rect>
+                      <rect id="Rectangle-27-Copy-9" fill="#000000" x="219" y="264" width="28" height="26" rx="3">
+                      </rect>
+                      <rect id="Rectangle-27-Copy-6" fill="#000000" x="205" y="233" width="28" height="26" rx="3">
+                      </rect>
+                      <rect id="Rectangle-27-Copy-2" fill="#000000" x="186" y="202" width="28" height="26" rx="3">
+                      </rect>
+                      <rect id="Rectangle-27-Copy-3" fill="#000000" x="218.5" y="202" width="28" height="26" rx="3">
+                      </rect>
+                      <rect id="Rectangle-23" fill="#CECECE" x="120" y="160" width="101" height="17"></rect>
+                    </g>
+                  </g>
+                </g>
+              </g>
+            </g>
+          </svg>
+          <div class="card-body">
+            <form name="loginform" id="loginform" method="POST">
+              <fieldset>
+                <legend>{{ .ClientID }} wants us to authenticate you</legend>
+                <button id="register" type="button" class="btn btn-primary">Register credential</button>
+                <button id="login" type="submit" class="btn btn-primary">Authenticate</button>
+                <button id="forget" type="button" class="btn btn-secondary">Forget credential</button>
+              </fieldset>
+              <input type="hidden" name="assertion_response">
+              <input type="hidden" name="attestation_response">
+            </form>
           </div>
         </div>
-        <button id="register" type="button" class="btn btn-primary">Register credential</button>
-      </fieldset>
-      <fieldset>
-        <legend>Log in</legend>
-        <button id="login" type="submit" class="btn btn-primary">Log in</button>
-        <button id="forget" type="button" class="btn btn-secondary">Forget credential</button>
-      </fieldset>
-      <input type="hidden" name="assertion_response">
-      <input type="hidden" name="attestation_response">
-    </form>
+      </div>
+    </div>
   </div>
   <script>
     function base64urlToBuffer(baseurl64String) {
@@ -97,9 +163,9 @@
     function loadAttestationResponse(loginForm) {
       const attestationResponse = localStorage.getItem(clientID + "/attestation_response");
       loginForm.elements.namedItem("attestation_response").value = attestationResponse;
-      document.getElementById("register-fieldset").disabled = attestationResponse != null;
-      document.getElementById("login").disabled = attestationResponse == null;
-      document.getElementById("forget").disabled = attestationResponse == null;
+      document.getElementById("register").hidden = attestationResponse != null;
+      document.getElementById("login").hidden = attestationResponse == null;
+      document.getElementById("forget").hidden = attestationResponse == null;
     }
 
     function setAttestationResponse(loginForm, attestationResponse) {
@@ -142,6 +208,7 @@
             }]
           }
         });
+        console.log(credential.id);
         let attestationResponse = JSON.stringify({
           id: credential.id,
           rawId: bufferToBase64url(credential.rawId),
@@ -169,7 +236,6 @@
           }]
         }
       };
-      console.log(params);
       let credential = await navigator.credentials.get(params);
       let assertionResponse = JSON.stringify({
         id: credential.id,
@@ -181,102 +247,46 @@
           authenticatorData: bufferToBase64url(credential.response.authenticatorData),
         },
       });
-      console.log(assertionResponse);
       e.target.elements["assertion_response"].value = assertionResponse;
       e.target.submit();
     };
-    /*loginForm.onsubmit = async (e) => {
-      e.preventDefault();
-
-    /*const credential = await navigator.credentials.create({
-      publicKey: {
-        challenge: base64urlToBuffer(challenge),
-        rp: {
-          name: "Webauthn OIDC on behalf of " + clientID
-        },
-        user: {
-          id: base64urlToBuffer("zczEAX64EcKL703DK8jkTaoX87gaKxQUwSOCdFIHbc4"), // TODO more entropy
-          name: "webauthn-oidc",
-          displayName: "Webauthn OIDC on behalf of " + clientID
-        },
-        pubKeyCredParams: [{
-          alg: -7,
-          type: "public-key"
-        }]
-      }
-    });
-  };*/
-
-    /*document.forms.namedItem("register").onsubmit = async (e) => {
-      e.preventDefault();
-      let target = e.target;
-      let challenge = "{{ .Challenge }}";
-      let credential = await navigator.credentials.create({
-        publicKey: {
-          challenge: base64urlToBuffer(challenge),
-          rp: {
-            name: "Webauthn OIDC",
-          },
-          // There user id doesn't matter for our usecase however we could put some identifying information about the OIDC audience in here
-          user: {
-            id: base64urlToBuffer("zczEAX64EcKL703DK8jkTaoX87gaKxQUwSOCdFIHbc4"), // TODO more entropy
-            name: "Arian",
-            displayName: "Arian"
-          },
-          pubKeyCredParams: [{
-            alg: -7,
-            type: "public-key"
-          }]
-        }
-      });
-      // make sure follow-up logins are easy
-
-      let attestationResponse = JSON.stringify({
-        id: credential.id,
-        rawId: bufferToBase64url(credential.rawId),
-        type: credential.type,
-        response: {
-          attestationObject: bufferToBase64url(credential.response.attestationObject),
-          clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
-        },
-      }, null, 2);
-      target.elements["attestation_response"].value = attestationResponse
-      localStorage.setItem("attestation_response", attestationResponse);
-
-      console.log(credential.id.length)
-      loginForm.elements["attestation_response"].value = localStorage.getItem("attestation_response")
-      //target.submit()
-    };
-
-
-    loginForm.onsubmit = async (e) => {
-      e.preventDefault();
-      let target = e.target;
-      let challenge = "{{ .Challenge }}";
-      let attestationResponse = loginForm.elements["attestation_response"].value;
-      let credential = await navigator.credentials.get({
-        publicKey: {
-          challenge: base64urlToBuffer(challenge),
-          allowCredentials: [{
-            type: "public-key",
-            id: base64urlToBuffer(JSON.parse(attestationResponse).id)
-          }]
-        }
-      });
-      let assertionResponse = JSON.stringify({
-        id: credential.id,
-        rawId: bufferToBase64url(credential.rawId),
-        type: credential.type,
-        response: {
-          signature: bufferToBase64url(credential.response.signature),
-          clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
-          authenticatorData: bufferToBase64url(credential.response.authenticatorData),
-        },
-      });
-      target.elements["assertion_response"].value = assertionResponse;
-      target.submit()
-    };*/
   </script>
+  <style>
+    #yubikey-identifier {
+      animation-duration: 1s;
+      animation-name: insert;
+      animation-iteration-count: infinite;
+      animation-direction: alternate;
+      animation-timing-function: ease-in-out;
+    }
+
+    @keyframes insert {
+      0% {
+        transform: translateX(-10px);
+      }
+
+      20% {
+        transform: translateX(-10px);
+      }
+
+      80% {
+        transform: translateX(0);
+      }
+
+      100% {
+        transform: translateX(0);
+      }
+    }
+
+    svg {
+      transform: scale(-1, 1);
+      width: 50%;
+      max-width: 90vw;
+    }
+    body {
+      background-image: url("https://coolbackgrounds.io/images/unsplash/ashim-d-silva-medium-ed909940.jpg");
+    }
+  </style>
 </body>
 
 </html>
