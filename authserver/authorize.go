@@ -71,9 +71,10 @@ func BeginAuthenticate(w http.ResponseWriter, req *http.Request, session *sessio
 		panic(err)
 	}
 	if err := template.Execute(w, struct {
-		Challenge protocol.Challenge
-		ClientID  string
-	}{challenge, authorizeRequest.ClientID}); err != nil {
+		Challenge   protocol.Challenge
+		ClientID    string
+		RedirectURI string
+	}{challenge, authorizeRequest.ClientID, authorizeRequest.RedirectURI}); err != nil {
 		panic(err)
 	}
 }
@@ -187,17 +188,15 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		log.Println(err.Error())
 	}
 	var maxAge int64
-	if authorizeRequest.MaxAge == "" {
-		maxAge = int64(24 * time.Hour)
-	} else {
+	if authorizeRequest.MaxAge != "" {
 		// TODO push parsing logic to the FromValues function
 		maxAge, err = strconv.ParseInt(authorizeRequest.MaxAge, 10, 32)
 		if err != nil {
 			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 			return
 		}
+		loginSession.Options.MaxAge = int(maxAge)
 	}
-	loginSession.Options.MaxAge = int(maxAge)
 	loginSession.Options.SameSite = http.SameSiteLaxMode
 	challengeSession, err := server.sessionStore.Get(req, "challengeSession")
 	challengeSession.Options.SameSite = http.SameSiteStrictMode
@@ -261,7 +260,6 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		}
 	}
 
-	// max_age might have changed
 	if err := loginSession.Save(req, w); err != nil {
 		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 		return
