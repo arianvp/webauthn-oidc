@@ -3,29 +3,50 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=
-  , initial-scale=1.0">
+  <meta name="viewport" content="width=device-width , initial-scale=1.0">
   <title>Log in</title>
+  <!-- CSS only -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous">
+
 </head>
 
 <body>
-  <form name="login" id="login" method="POST">
-    <fieldset name="create_credential">
-      <legend>Credential creation options</legend>
-      <input type="checkbox" name="require_user_verification">
-      <label for="require_user_verification">Require pin or biometric for log in (Recommended)</label>
-      <br />
-      <!-- TODO in the future separate endpoint -->
-      <input id="register" type="button" value="Generate credential">
-    </fieldset>
+  <div class="container">
+    <div id="alert-placeholder">
 
+    </div>
 
-    <input type="text" required name="attestation_response">
-    <input type="submit" value="Log in">
-
-    <input type="hidden" name="assertion_response">
-  </form>
+    <form name="loginform" id="loginform" method="POST">
+      <fieldset id="register-fieldset">
+        <legend>Credential</legend>
+        <div class="form-group">
+          <label for="">Attestation mode</label>
+          <select class="form-control" name="" id="">
+            <option selected>None</option>
+            <option>Indirect</option>
+            <option>Direct</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <div class="form-check">
+            <label class="form-check-label">
+              <input type="checkbox" class="form-check-input" name="" id="" value="checkedValue" checked>
+              Require pin or biometric for login
+            </label>
+          </div>
+        </div>
+        <button id="register" type="button" class="btn btn-primary">Register credential</button>
+      </fieldset>
+      <fieldset>
+        <legend>Log in</legend>
+        <button id="login" type="submit" class="btn btn-primary">Log in</button>
+        <button id="forget" type="button" class="btn btn-secondary">Forget credential</button>
+      </fieldset>
+      <input type="hidden" name="assertion_response">
+      <input type="hidden" name="attestation_response">
+    </form>
+  </div>
   <script>
     function base64urlToBuffer(baseurl64String) {
       // Base64url to Base64
@@ -64,45 +85,77 @@
         .replace(/=/g, "");
       return base64urlString;
     }
+    var alertPlaceholder = document.getElementById('alert-placeholder');
+
+    function alert(message, type) {
+      var wrapper = document.createElement('div');
+      wrapper.innerHTML = '<div class="alert alert-' + type + ' alert-dismissible" role="alert">' + message + '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
+
+      alertPlaceholder.append(wrapper);
+    }
+
+    function loadAttestationResponse(loginForm) {
+      const attestationResponse = localStorage.getItem(clientID + "/attestation_response");
+      loginForm.elements.namedItem("attestation_response").value = attestationResponse;
+      document.getElementById("register-fieldset").disabled = attestationResponse != null;
+      document.getElementById("login").disabled = attestationResponse == null;
+      document.getElementById("forget").disabled = attestationResponse == null;
+    }
+
+    function setAttestationResponse(loginForm, attestationResponse) {
+      localStorage.setItem(clientID + "/attestation_response", attestationResponse);
+      loadAttestationResponse(loginForm);
+    }
+
+    function forgetAttestationResponse(loginForm) {
+      localStorage.removeItem(clientID + "/attestation_response")
+      loadAttestationResponse(loginForm);
+    }
 
     const challenge = "{{ .Challenge }}";
     const clientID = "{{ .ClientID }}";
 
-    const loginForm = document.forms.namedItem("login");
-    loginForm.elements.namedItem("attestation_response").value = localStorage.getItem(clientID + "/attestation_response");
+    const loginForm = document.forms.namedItem("loginform");
+    loadAttestationResponse(loginForm);
 
+    document.getElementById("forget").onclick = async (e) => {
+      forgetAttestationResponse(loginForm);
+    };
     document.getElementById("register").onclick = async (e) => {
       e.preventDefault();
-      let credential = await navigator.credentials.create({
-        publicKey: {
-          challenge: base64urlToBuffer(challenge),
-          rp: {
-            name: "Webauthn OIDC",
+      try {
+        let credential = await navigator.credentials.create({
+          publicKey: {
+            challenge: base64urlToBuffer(challenge),
+            rp: {
+              name: "Webauthn OIDC",
+            },
+            // There user id doesn't matter for our usecase however we could put some identifying information about the OIDC audience in here
+            user: {
+              id: base64urlToBuffer("zczEAX64EcKL703DK8jkTaoX87gaKxQUwSOCdFIHbc4"), // TODO more entropy
+              name: "Arian",
+              displayName: "Arian"
+            },
+            pubKeyCredParams: [{
+              alg: -7,
+              type: "public-key"
+            }]
+          }
+        });
+        let attestationResponse = JSON.stringify({
+          id: credential.id,
+          rawId: bufferToBase64url(credential.rawId),
+          type: credential.type,
+          response: {
+            attestationObject: bufferToBase64url(credential.response.attestationObject),
+            clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
           },
-          // There user id doesn't matter for our usecase however we could put some identifying information about the OIDC audience in here
-          user: {
-            id: base64urlToBuffer("zczEAX64EcKL703DK8jkTaoX87gaKxQUwSOCdFIHbc4"), // TODO more entropy
-            name: "Arian",
-            displayName: "Arian"
-          },
-          pubKeyCredParams: [{
-            alg: -7,
-            type: "public-key"
-          }]
-        }
-      });
-      let attestationResponse = JSON.stringify({
-        id: credential.id,
-        rawId: bufferToBase64url(credential.rawId),
-        type: credential.type,
-        response: {
-          attestationObject: bufferToBase64url(credential.response.attestationObject),
-          clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
-        },
-      }, null, 2);
+        }, null, 2);
 
-      loginForm.elements["attestation_response"].value = attestationResponse;
-      localStorage.setItem(clientID + "/attestation_response", attestationResponse);
+        setAttestationResponse(loginForm, attestationResponse);
+      } catch (e) {
+        alert(e, "danger")
+      }
     };
 
     loginForm.onsubmit = async (e) => {

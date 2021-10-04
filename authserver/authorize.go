@@ -3,6 +3,7 @@ package authserver
 import (
 	"bytes"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -183,8 +184,7 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 
 	loginSession, err := server.sessionStore.Get(req, "loginSession")
 	if err != nil {
-		ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-		return
+		log.Println(err.Error())
 	}
 	var maxAge int64
 	if authorizeRequest.MaxAge == "" {

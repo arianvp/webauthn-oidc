@@ -116,7 +116,6 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, privateR
 	server.Handle(wellKnownJwks, http.HandlerFunc(server.handleWellknownJwks))
 	server.Handle(register, http.HandlerFunc(server.handleRegister))
 	server.Handle(userinfo, http.HandlerFunc(server.handleUserinfo))
-	server.Handle("/", http.RedirectHandler("https://github.com/arianvp/webauthn-oidc/", http.StatusFound))
 
 	return server
 }
