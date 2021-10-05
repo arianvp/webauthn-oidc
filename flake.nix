@@ -60,6 +60,7 @@
 
         devShell = with pkgs; mkShell {
           nativeBuildInputs = [
+            bashInteractive
             go
             mkcert
             kind
