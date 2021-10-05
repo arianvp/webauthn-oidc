@@ -25,10 +25,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 <body>
   <div class="container">
+    <div id="alert-placeholder"></div>
     <div class="mt-5 row align-items-center justify-content-center">
-      <div class="col-3">
+      <div class="col-xl-4 col-lg-5 col-md-6 col-sm-8">
         <div class="card bg-dark text-light">
-          <svg height="10rem" class="card-img-top" viewBox="-40 0 236 164" version="1.1"
+          <svg version="1.1"
             xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
             xmlns:sketch="http://www.bohemiancoding.com/sketch/ns">
             <defs>
@@ -44,10 +45,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
               </filter>
               <rect id="path-2" x="0" y="0" width="231" height="161"></rect>
             </defs>
-            <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" sketch:type="MSPage"
-              transform="translate(-45, -118)">
+            <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" sketch:type="MSPage" >
               <g id="Retina-Macbook-Copy-5" sketch:type="MSArtboardGroup">
-                <g id="Demo" sketch:type="MSLayerGroup" transform="translate(49.000000, 119.000000)">
+                <g id="Demo" sketch:type="MSLayerGroup" >
                   <mask id="mask-3" sketch:name="Mask" fill="white">
                     <use xlink:href="#path-2"></use>
                   </mask>
@@ -279,9 +279,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     }
 
     svg {
-      transform: scale(-1, 1);
-      width: 50%;
-      max-width: 90vw;
+      position: relative;
+      right: 0;
+      transform:scaleX(-1);
+      width: 230px;
+      height: 100%;
     }
     body {
       background-image: url("https://coolbackgrounds.io/images/unsplash/ashim-d-silva-medium-ed909940.jpg");
