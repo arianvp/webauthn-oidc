@@ -29,16 +29,18 @@ kubectl oidc-login setup --oidc-issuer-url https://oidc.arianvp.me --oidc-client
 https://user-images.githubusercontent.com/628387/135057960-89915cd1-d801-47d3-a145-1d7c27f62fc3.mp4
 
 
-
-
 ## Registering an Oauth Client
 
-For now registration is completely public. The algorithm to mint a `client_id` for a given `redirect_uri` is:
-```go
-func RegisterClient(redirectURI string) string {
-	hash := sha256.Sum256([]byte(redirectURI))
-	return base64.RawURLEncoding.EncodeToString(hash[:])
+webauthn-oidc implements the Dynamic Registration standard:
+
+```
+$ curl -s -XPOST https://oidc.arianvp.me/register --data '{"redirect_uris":["http://localhost:8000"]}' | jq .
+{
+  "client_id": "ASF4Os1wJysH6uWvJV9PvyNiph4y4O84tGCHj1FZEE8",
+  "client_secret": "ASF4Os1wJysH6uWvJV9PvyNiph4y4O84tGCHj1FZEE8Mi_AdSNTdk2QoLyZGdGXhhhdbQqFAJZ-PEH6m1UYD_w"
 }
+
+
 ```
 
 
