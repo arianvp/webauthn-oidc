@@ -26,9 +26,11 @@ kubectl oidc-login setup --oidc-issuer-url https://oidc.arianvp.me --oidc-client
 ```
 
 ### Video demo
-https://user-images.githubusercontent.com/628387/135057960-89915cd1-d801-47d3-a145-1d7c27f62fc3.mp4
+
+https://user-images.githubusercontent.com/628387/136426174-1e9b1400-2672-4949-8296-c27b28f102d6.mp4
 
 
+  
 ## Registering an Oauth Client
 
 webauthn-oidc implements the Dynamic Registration standard:
@@ -39,6 +41,9 @@ $ curl -s -XPOST https://oidc.arianvp.me/register --data '{"redirect_uris":["htt
   "client_id": "ASF4Os1wJysH6uWvJV9PvyNiph4y4O84tGCHj1FZEE8",
   "client_secret": "ASF4Os1wJysH6uWvJV9PvyNiph4y4O84tGCHj1FZEE8Mi_AdSNTdk2QoLyZGdGXhhhdbQqFAJZ-PEH6m1UYD_w"
 }
+
+
+
 
 
 ```
