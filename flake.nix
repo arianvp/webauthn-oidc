@@ -55,7 +55,7 @@
           pname = "webauthn-oidc";
           version = "0.0.1";
           src =  pkgs.lib.cleanSource ./.;
-          vendorSha256 = "sha256-C3ojEXtg7h3+URMBWAaB45ugtSaaJRHyBqiTDW4hDtU=";
+          vendorSha256 = "sha256-7KLcROifOyJ7ub4b9DyRTbcVXwArM6RvOEuobSuwIHQ=-";
         };
 
         devShell = with pkgs; mkShell {

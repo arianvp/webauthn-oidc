@@ -1,9 +1,8 @@
 package authserver
 
 import (
+	"crypto/sha256"
 	"fmt"
-
-	"github.com/hashicorp/cap/oidc"
 )
 
 type codeVerifier struct {
@@ -12,23 +11,14 @@ type codeVerifier struct {
 	method    string
 }
 
-func (v *codeVerifier) Verifier() string  { return v.verifier }
-func (v *codeVerifier) Challenge() string { return v.challenge }
-func (v *codeVerifier) Copy() oidc.CodeVerifier {
-	return &codeVerifier{
-		challenge: v.challenge,
-		verifier:  v.verifier,
-		method:    v.method,
-	}
-}
-func (v *codeVerifier) Method() oidc.ChallengeMethod { return oidc.ChallengeMethod(v.method) }
-
 func (v *codeVerifier) Verify() error {
-	expectedChallenge, err := oidc.CreateCodeChallenge(v)
-	if err != nil {
-		return err
+	if v.method != "S256" {
+		return fmt.Errorf("expected %s but got %s", "S256", v.method)
 	}
-	if expectedChallenge != v.challenge {
+	challenge := sha256.Sum256([]byte(v.verifier))
+	expectedChallenge := string(challenge[:])
+
+	if v.challenge != expectedChallenge {
 		return fmt.Errorf("expected %s but got %s", expectedChallenge, v.challenge)
 	}
 	return nil
