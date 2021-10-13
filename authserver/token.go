@@ -83,6 +83,11 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		return
 	}
 
+	// Bind authorization code to a confidential client or PKCE challenge.  In
+	// this case, the attacker lacks the secret to request the code exchange.
+	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics#section-4.2.4
+	authorized := false
+
 	if tokenRequest.CodeVerifier != "" {
 		verifier := codeVerifier{
 			challenge: state.codeChallenge,
@@ -90,11 +95,14 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 			method:    state.codeChallengeMethod,
 		}
 
+		authorized = authorized && true
+
 		if err := verifier.Verify(); err != nil {
 			// TODO is this the correct reponse?
 			ErrInvalidRequest.WithDescription(err.Error()).RespondJSON(w)
 			return
 		}
+
 	}
 	clientID, clientSecret, hasBasicAuth := req.BasicAuth()
 
@@ -103,7 +111,11 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		clientSecret = req.Form.Get("client_secret")
 	}
 
-	if clientID != "" && clientSecret != "" && (clientID != state.clientID || clientSecret != state.clientSecret) {
+	if clientID != "" && clientSecret != "" {
+		authorized = authorized && (clientID == state.clientID && clientSecret == state.clientSecret)
+	}
+
+	if !authorized {
 		ErrUnauthorizedClient.RespondJSON(w)
 		return
 	}
