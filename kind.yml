@@ -1,5 +1,8 @@
 apiVersion: kind.x-k8s.io/v1alpha4
 kind: Cluster
+networking:
+  apiServerAddress: "127.0.0.1"
+  apiServerPort: 6443
 nodes:
   - role: control-plane
     kubeadmConfigPatches:
@@ -9,3 +12,4 @@ nodes:
           extraArgs:
             oidc-issuer-url: https://oidc.arianvp.me
             oidc-client-id: ASF4Os1wJysH6uWvJV9PvyNiph4y4O84tGCHj1FZEE8
+            service-account-issuer: https://127.0.0.1:6443

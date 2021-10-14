@@ -157,13 +157,8 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 	query := redirectURI.Query()
 	query.Set("state", authorizeRequest.State)
 
-	registrationResponse, err := server.RegisterClient(RegistrationRequest{[]string{authorizeRequest.RedirectURI}})
-	if err != nil {
-		ErrInvalidRequest.WithDescription(err.Error()).RespondJSON(w)
-		return
-	}
-
-	if authorizeRequest.ClientID != registrationResponse.ClientID {
+	expectedClientID := GenerateClientID(authorizeRequest.RedirectURI)
+	if authorizeRequest.ClientID != expectedClientID {
 		ErrInvalidRequest.WithDescription("redirect_uri does not match client_id.").RespondJSON(w)
 		return
 	}
@@ -269,8 +264,6 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		codeChallenge:       authorizeRequest.CodeChallenge,
 		codeChallengeMethod: authorizeRequest.CodeChallengeMethod,
 		redirectURI:         authorizeRequest.RedirectURI,
-		clientID:            authorizeRequest.ClientID,
-		clientSecret:        registrationResponse.ClientSecret,
 		nonce:               authorizeRequest.Nonce,
 		credential:          credential,
 		authTime:            authTime,

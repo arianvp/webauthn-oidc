@@ -13,12 +13,20 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
+type TokenResource struct {
+	origin          string
+	codeCache       *codeCache
+	privateJWKs     jose.JSONWebKeySet
+	clientSecretKey []byte
+}
+
 type TokenRequest struct {
 	Code         string // a time-bound use-once code
 	CodeVerifier string // must check with previous code_challenge in authorize step
 	GrantType    string // must check with previous redirect_uri in authorize step
 	RedirectURI  string // must check with previous client_id in authorize stestirng
 	ClientID     string
+	ClientSecret string
 }
 
 type TokenResponse struct {
@@ -53,6 +61,7 @@ func TokenRequestFromValues(values url.Values) TokenRequest {
 		GrantType:    values.Get("grant_type"),
 		RedirectURI:  values.Get("redirect_uri"),
 		ClientID:     values.Get("client_id"),
+		ClientSecret: values.Get("client_secret"),
 	}
 }
 
@@ -65,7 +74,7 @@ func ParseTokenRequest(req *http.Request) (*TokenRequest, error) {
 
 }
 
-func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.Request) {
+func (t *TokenResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -77,7 +86,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		return
 	}
 
-	state := server.codeCache.del(tokenRequest.Code)
+	state := t.codeCache.del(tokenRequest.Code)
 	if state == nil {
 		ErrInvalidGrant.RespondJSON(w)
 		return
@@ -89,7 +98,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	authorized := false
 
 	if tokenRequest.CodeVerifier != "" {
-		verifier := codeVerifier{
+		verifier := CodeVerifier{
 			challenge: state.codeChallenge,
 			verifier:  tokenRequest.CodeVerifier,
 			method:    state.codeChallengeMethod,
@@ -107,12 +116,18 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	clientID, clientSecret, hasBasicAuth := req.BasicAuth()
 
 	if !hasBasicAuth {
-		clientID = req.Form.Get("client_id")
-		clientSecret = req.Form.Get("client_secret")
+		clientID = tokenRequest.ClientID
+		clientSecret = tokenRequest.ClientSecret
+	}
+
+	resp, err := RegisterClient(t.clientSecretKey, state.redirectURI)
+	if err != nil {
+		ErrInvalidRequest.WithDescription(err.Error()).RespondJSON(w)
+		return
 	}
 
 	if clientID != "" && clientSecret != "" {
-		authorized = authorized && (clientID == state.clientID && clientSecret == state.clientSecret)
+		authorized = authorized && (clientID == resp.ClientID && clientSecret == resp.ClientSecret)
 	}
 
 	if !authorized {
@@ -122,7 +137,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.RS256,
-		Key:       server.privateJWKs.Key(string(jose.RS256))[0],
+		Key:       t.privateJWKs.Key(string(jose.RS256))[0],
 	}, &jose.SignerOptions{})
 
 	if err != nil {
@@ -134,7 +149,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	hasher := sha256.New()
 	hasher.Write(state.credential.ID)
 	hasher.Write(state.credential.PublicKey)
-	hasher.Write([]byte(state.clientID))
+	hasher.Write([]byte(clientID))
 	// NOTE: only taking 160 bits makes the subject a bit more readable while still
 	// being plenty collision resistant
 	subject := base64.RawURLEncoding.EncodeToString(hasher.Sum(nil)[:20])
@@ -149,9 +164,9 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	accessTokenEpiresIn := jwt.NewNumericDate(now.Add(10 * time.Minute))
 
 	claims := jwt.Claims{
-		Issuer:    server.origin,
+		Issuer:    t.origin,
 		Subject:   subject,
-		Audience:  []string{server.origin},
+		Audience:  []string{t.origin},
 		Expiry:    accessTokenEpiresIn,
 		NotBefore: jwt.NewNumericDate(now),
 		IssuedAt:  jwt.NewNumericDate(now),
@@ -176,9 +191,9 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	jti = base64.RawURLEncoding.EncodeToString(rawJTI)
 
 	claims = jwt.Claims{
-		Issuer:    server.origin,
+		Issuer:    t.origin,
 		Subject:   subject,
-		Audience:  []string{state.clientID},
+		Audience:  []string{clientID},
 		Expiry:    jwt.NewNumericDate(now.Add(10 * time.Hour)),
 		NotBefore: jwt.NewNumericDate(now),
 		IssuedAt:  jwt.NewNumericDate(now),

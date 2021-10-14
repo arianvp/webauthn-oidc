@@ -7,7 +7,7 @@ import (
 )
 
 func TestRegisterEmptyClient(t *testing.T) {
-	server := AuthorizationServer{
+	server := RegistrationResource{
 		clientSecretKey: []byte("helllo"),
 	}
 	response, err := server.RegisterClient(RegistrationRequest{
@@ -19,7 +19,7 @@ func TestRegisterEmptyClient(t *testing.T) {
 }
 
 func TestRegisterOneClient(t *testing.T) {
-	server := AuthorizationServer{
+	server := RegistrationResource{
 		clientSecretKey: []byte("helllo"),
 	}
 	response, err := server.RegisterClient(RegistrationRequest{
@@ -38,7 +38,7 @@ func TestRegisterOneClient(t *testing.T) {
 
 func TestRegisterMultipleURIs(t *testing.T) {
 
-	server := AuthorizationServer{
+	server := RegistrationResource{
 		clientSecretKey: []byte("helllo"),
 	}
 	_, err := server.RegisterClient(RegistrationRequest{
@@ -50,7 +50,7 @@ func TestRegisterMultipleURIs(t *testing.T) {
 }
 func TestRegisterInvalidURI(t *testing.T) {
 
-	server := AuthorizationServer{
+	server := RegistrationResource{
 		clientSecretKey: []byte("helllo"),
 	}
 	_, err := server.RegisterClient(RegistrationRequest{
@@ -62,12 +62,12 @@ func TestRegisterInvalidURI(t *testing.T) {
 }
 
 func TestHandleRegisterRejcetsGet(t *testing.T) {
-	server := AuthorizationServer{
+	server := RegistrationResource{
 		clientSecretKey: []byte("helllo"),
 	}
 	req := httptest.NewRequest("GET", "/register", nil)
 	w := httptest.NewRecorder()
-	server.handleRegister(w, req)
+	server.ServeHTTP(w, req)
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("Expected method not allowed")
 	}

@@ -11,6 +11,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+type RegistrationResource struct {
+	clientSecretKey []byte
+}
+
 type RegistrationRequest struct {
 	RedirectURIs []string `json:"redirect_uris"`
 }
@@ -20,29 +24,39 @@ type RegistrationResponse struct {
 	ClientSecret string `json:"client_secret,omitempty"`
 }
 
-func (server *AuthorizationServer) RegisterClient(req RegistrationRequest) (*RegistrationResponse, error) {
+func GenerateClientIDRaw(redirectURI string) []byte {
+	return sha256.New().Sum([]byte(redirectURI))
+}
+func GenerateClientID(redirectURI string) string {
+	return base64.RawURLEncoding.EncodeToString(GenerateClientIDRaw(redirectURI))
+}
+
+func RegisterClient(clientSecretKey []byte, redirectURI string) (*RegistrationResponse, error) {
+	_, err := url.Parse(redirectURI)
+	if err != nil {
+		return nil, ErrInvalidRedirectURI.WithDescription(err.Error())
+
+	}
+	clientIDRaw := GenerateClientIDRaw(redirectURI)
+	hmacer := hmac.New(sha256.New, clientSecretKey)
+	clientSecretRaw := hmacer.Sum(clientIDRaw)
+	return &RegistrationResponse{
+		ClientID:     base64.RawURLEncoding.EncodeToString(clientIDRaw),
+		ClientSecret: base64.RawURLEncoding.EncodeToString(clientSecretRaw),
+	}, nil
+}
+
+func (r *RegistrationResource) RegisterClient(req RegistrationRequest) (*RegistrationResponse, error) {
 	if len(req.RedirectURIs) == 0 {
 		return nil, errors.New("No redirect_uris found")
 	}
 	if len(req.RedirectURIs) > 1 {
 		return nil, errors.New("Only one redirect_uri can currently be registered per client")
 	}
-	redirectURI := req.RedirectURIs[0]
-	_, err := url.Parse(redirectURI)
-	if err != nil {
-		return nil, ErrInvalidRedirectURI.WithDescription(err.Error())
-
-	}
-	clientIDRaw := sha256.Sum256([]byte(redirectURI))
-	hmacer := hmac.New(sha256.New, server.clientSecretKey)
-	clientSecretRaw := hmacer.Sum(clientIDRaw[:])
-	return &RegistrationResponse{
-		ClientID:     base64.RawURLEncoding.EncodeToString(clientIDRaw[:]),
-		ClientSecret: base64.RawURLEncoding.EncodeToString(clientSecretRaw),
-	}, nil
+	return RegisterClient(r.clientSecretKey, req.RedirectURIs[0])
 }
 
-func (server *AuthorizationServer) handleRegister(w http.ResponseWriter, req *http.Request) {
+func (r *RegistrationResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -53,7 +67,7 @@ func (server *AuthorizationServer) handleRegister(w http.ResponseWriter, req *ht
 		return
 	}
 
-	registrationResponse, err := server.RegisterClient(registrationRequest)
+	registrationResponse, err := r.RegisterClient(registrationRequest)
 	if err != nil {
 		ErrorToRFC6749Error(err).RespondJSON(w)
 		return
