@@ -32,12 +32,11 @@ func init() {
 
 	codeCache := newCodeCache()
 	codeCache.newCode(&state{
-		codeChallenge:       "",
-		codeChallengeMethod: "",
-		redirectURI:         "",
-		nonce:               "",
-		authTime:            0,
-		credential:          &webauthn.Credential{},
+		codeChallenge: "",
+		redirectURI:   "",
+		nonce:         "",
+		authTime:      0,
+		credential:    &webauthn.Credential{},
 	})
 
 	tokenResource = TokenResource{
