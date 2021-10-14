@@ -5,10 +5,9 @@ import (
 	"fmt"
 )
 
-type CodeVerifier struct {
+type S256CodeVerifier struct {
 	challenge string
 	verifier  string
-	method    string
 }
 
 func CreateCodeChallenge(codeVerifier string) (codeChallenge string) {
@@ -16,11 +15,7 @@ func CreateCodeChallenge(codeVerifier string) (codeChallenge string) {
 	return
 }
 
-func (v *CodeVerifier) Verify() error {
-	if v.method != "S256" {
-		return fmt.Errorf("expected %s but got %s", "S256", v.method)
-	}
-
+func (v *S256CodeVerifier) Verify() error {
 	expectedChallenge := CreateCodeChallenge(v.verifier)
 
 	if v.challenge != expectedChallenge {

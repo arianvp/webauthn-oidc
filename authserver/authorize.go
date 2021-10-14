@@ -260,13 +260,17 @@ func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *h
 		return
 	}
 
+	if authorizeRequest.CodeChallengeMethod != "S256" {
+		ErrInvalidRequest.WithDescription("only S256 is supported.").RespondRedirect(w, redirectURI, query)
+		return
+	}
+
 	code, err := server.codeCache.newCode(&state{
-		codeChallenge:       authorizeRequest.CodeChallenge,
-		codeChallengeMethod: authorizeRequest.CodeChallengeMethod,
-		redirectURI:         authorizeRequest.RedirectURI,
-		nonce:               authorizeRequest.Nonce,
-		credential:          credential,
-		authTime:            authTime,
+		codeChallenge: authorizeRequest.CodeChallenge,
+		redirectURI:   authorizeRequest.RedirectURI,
+		nonce:         authorizeRequest.Nonce,
+		credential:    credential,
+		authTime:      authTime,
 	})
 	if err != nil {
 		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)

@@ -98,10 +98,9 @@ func (t *TokenResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	authorized := false
 
 	if tokenRequest.CodeVerifier != "" {
-		verifier := CodeVerifier{
+		verifier := S256CodeVerifier{
 			challenge: state.codeChallenge,
 			verifier:  tokenRequest.CodeVerifier,
-			method:    state.codeChallengeMethod,
 		}
 
 		authorized = authorized && true

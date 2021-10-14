@@ -9,12 +9,11 @@ import (
 )
 
 type state struct {
-	codeChallenge       string
-	codeChallengeMethod string
-	redirectURI         string
-	nonce               string
-	authTime            int64
-	credential          *webauthn.Credential
+	codeChallenge string
+	redirectURI   string
+	nonce         string
+	authTime      int64
+	credential    *webauthn.Credential
 }
 
 type codeCache struct {
