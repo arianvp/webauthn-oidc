@@ -84,16 +84,12 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 	if state == nil {
 		return nil, ErrInvalidGrant
 	}
-	// Bind authorization code to a confidential client or PKCE challenge.  In
-	// this case, the attacker lacks the secret to request the code exchange.
-	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics#section-4.2.4
-	authorized := false
 
+	// if code_verifier is present, it must be valid to succeed
 	if tokenRequest.CodeVerifier != "" {
 		if err := VerifyCodeChallenge(state.codeChallenge, tokenRequest.CodeVerifier); err != nil {
 			return nil, ErrInvalidRequest.WithDescription(err.Error())
 		}
-		authorized = true
 	}
 
 	resp, err := RegisterClient(t.clientSecretKey, state.redirectURI)
@@ -101,8 +97,17 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 		return nil, ErrInvalidRequest.WithDescription(err.Error())
 	}
 
-	if tokenRequest.ClientID != "" && tokenRequest.ClientSecret != "" {
-		authorized = authorized && (tokenRequest.ClientID == resp.ClientID && tokenRequest.ClientSecret == resp.ClientSecret)
+	if tokenRequest.ClientID != resp.ClientID {
+		return nil, ErrUnauthorizedClient
+	}
+
+	authorized := false
+	if tokenRequest.ClientSecret == "" && tokenRequest.CodeVerifier != "" {
+		// public client
+		authorized = true
+	} else if tokenRequest.ClientSecret == resp.ClientSecret {
+		// confidential client
+		authorized = true
 	}
 
 	if !authorized {

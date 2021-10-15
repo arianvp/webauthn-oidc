@@ -176,7 +176,15 @@ func TestClientIDWrongClientSecretDoesNotWork(t *testing.T) {
 
 }
 
-func TestClientIDWrongClientSecretVerifierDoesNotWork(t *testing.T) {
+func TestClientIDWrongClientSecretCodeVerifierDoesNotWork(t *testing.T) {
+
+}
+
+func TestClientIDWrongCodeVerifierDoesNotWork(t *testing.T) {
+
+}
+
+func TestClientIDWrongClientSecretWrongCodeVerifierDoesNotWork(t *testing.T) {
 
 }
 
