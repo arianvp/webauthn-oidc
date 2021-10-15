@@ -65,13 +65,9 @@ func TokenRequestFromValues(values url.Values) TokenRequest {
 	}
 }
 
-func ParseTokenRequest(req *http.Request) (*TokenRequest, error) {
-	if err := req.ParseForm(); err != nil {
-		return nil, err
-	}
-	tokenRequest := TokenRequestFromValues(req.Form)
-	return &tokenRequest, nil
-
+func ParseTokenRequest(req *http.Request) TokenRequest {
+	req.ParseForm()
+	return TokenRequestFromValues(req.Form)
 }
 
 func (t *TokenResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -79,12 +75,7 @@ func (t *TokenResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-
-	tokenRequest, err := ParseTokenRequest(req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+	tokenRequest := ParseTokenRequest(req)
 
 	state := t.codeCache.del(tokenRequest.Code)
 	if state == nil {
@@ -98,20 +89,13 @@ func (t *TokenResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	authorized := false
 
 	if tokenRequest.CodeVerifier != "" {
-		verifier := S256CodeVerifier{
-			challenge: state.codeChallenge,
-			verifier:  tokenRequest.CodeVerifier,
-		}
-
-		authorized = authorized && true
-
-		if err := verifier.Verify(); err != nil {
-			// TODO is this the correct reponse?
+		if err := VerifyCodeChallenge(state.codeChallenge, tokenRequest.CodeVerifier); err != nil {
 			ErrInvalidRequest.WithDescription(err.Error()).RespondJSON(w)
 			return
 		}
-
+		authorized = true
 	}
+
 	clientID, clientSecret, hasBasicAuth := req.BasicAuth()
 
 	if !hasBasicAuth {
