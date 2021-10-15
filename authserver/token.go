@@ -67,22 +67,23 @@ func TokenRequestFromValues(values url.Values) TokenRequest {
 
 func ParseTokenRequest(req *http.Request) TokenRequest {
 	req.ParseForm()
-	return TokenRequestFromValues(req.Form)
+	tokenRequest := TokenRequestFromValues(req.Form)
+	clientID, clientSecret, hasBasicAuth := req.BasicAuth()
+	if hasBasicAuth {
+		// I think the presedence here is correct as client_id is only
+		// required if BasicAuth is _not_ present
+		// TODO read spec more closely
+		tokenRequest.ClientID = clientID
+		tokenRequest.ClientSecret = clientSecret
+	}
+	return tokenRequest
 }
 
-func (t *TokenResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if req.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	tokenRequest := ParseTokenRequest(req)
-
+func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6749Error) {
 	state := t.codeCache.del(tokenRequest.Code)
 	if state == nil {
-		ErrInvalidGrant.RespondJSON(w)
-		return
+		return nil, ErrInvalidGrant
 	}
-
 	// Bind authorization code to a confidential client or PKCE challenge.  In
 	// this case, the attacker lacks the secret to request the code exchange.
 	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics#section-4.2.4
@@ -90,32 +91,22 @@ func (t *TokenResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	if tokenRequest.CodeVerifier != "" {
 		if err := VerifyCodeChallenge(state.codeChallenge, tokenRequest.CodeVerifier); err != nil {
-			ErrInvalidRequest.WithDescription(err.Error()).RespondJSON(w)
-			return
+			return nil, ErrInvalidRequest.WithDescription(err.Error())
 		}
 		authorized = true
 	}
 
-	clientID, clientSecret, hasBasicAuth := req.BasicAuth()
-
-	if !hasBasicAuth {
-		clientID = tokenRequest.ClientID
-		clientSecret = tokenRequest.ClientSecret
-	}
-
 	resp, err := RegisterClient(t.clientSecretKey, state.redirectURI)
 	if err != nil {
-		ErrInvalidRequest.WithDescription(err.Error()).RespondJSON(w)
-		return
+		return nil, ErrInvalidRequest.WithDescription(err.Error())
 	}
 
-	if clientID != "" && clientSecret != "" {
-		authorized = authorized && (clientID == resp.ClientID && clientSecret == resp.ClientSecret)
+	if tokenRequest.ClientID != "" && tokenRequest.ClientSecret != "" {
+		authorized = authorized && (tokenRequest.ClientID == resp.ClientID && tokenRequest.ClientSecret == resp.ClientSecret)
 	}
 
 	if !authorized {
-		ErrUnauthorizedClient.RespondJSON(w)
-		return
+		return nil, ErrUnauthorizedClient
 	}
 
 	signer, err := jose.NewSigner(jose.SigningKey{
@@ -132,7 +123,7 @@ func (t *TokenResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	hasher := sha256.New()
 	hasher.Write(state.credential.ID)
 	hasher.Write(state.credential.PublicKey)
-	hasher.Write([]byte(clientID))
+	hasher.Write([]byte(tokenRequest.ClientID))
 	// NOTE: only taking 160 bits makes the subject a bit more readable while still
 	// being plenty collision resistant
 	subject := base64.RawURLEncoding.EncodeToString(hasher.Sum(nil)[:20])
@@ -176,7 +167,7 @@ func (t *TokenResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	claims = jwt.Claims{
 		Issuer:    t.origin,
 		Subject:   subject,
-		Audience:  []string{clientID},
+		Audience:  []string{tokenRequest.ClientID},
 		Expiry:    jwt.NewNumericDate(now.Add(10 * time.Hour)),
 		NotBefore: jwt.NewNumericDate(now),
 		IssuedAt:  jwt.NewNumericDate(now),
@@ -203,7 +194,20 @@ func (t *TokenResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		ExpiresIn:   accessTokenEpiresIn,
 	}
 
+	return &tokenResponse, nil
+}
+
+func (t *TokenResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	tokenRequest := ParseTokenRequest(req)
+	tokenResponse, err := t.Handle(tokenRequest)
+	if err != nil {
+		err.RespondJSON(w)
+		return
+	}
 	w.Header().Add("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(tokenResponse)
-
 }
