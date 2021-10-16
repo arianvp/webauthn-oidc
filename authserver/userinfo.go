@@ -4,15 +4,20 @@ import (
 	"net/http"
 	"strings"
 
+	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/json"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
+
+type UserInfoResource struct {
+	accessTokenPublicJWKs jose.JSONWebKeySet
+}
 
 type UserinfoResponse struct {
 	Subject string `json:"sub"`
 }
 
-func (server *AuthorizationServer) handleUserinfo(w http.ResponseWriter, req *http.Request) {
+func (r *UserInfoResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet && req.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -29,7 +34,7 @@ func (server *AuthorizationServer) handleUserinfo(w http.ResponseWriter, req *ht
 	}
 	var claims jwt.Claims
 
-	for _, key := range server.publicJWKs.Keys {
+	for _, key := range r.accessTokenPublicJWKs.Keys {
 		err = token.Claims(key, &claims)
 		if err == nil {
 			break

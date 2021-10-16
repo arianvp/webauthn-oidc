@@ -5,21 +5,15 @@ import (
 	"fmt"
 )
 
-type codeVerifier struct {
-	challenge string
-	verifier  string
-	method    string
+func CreateCodeChallenge(codeVerifier string) (codeChallenge string) {
+	codeChallenge = string(sha256.New().Sum([]byte(codeVerifier)))
+	return
 }
 
-func (v *codeVerifier) Verify() error {
-	if v.method != "S256" {
-		return fmt.Errorf("expected %s but got %s", "S256", v.method)
-	}
-	challenge := sha256.Sum256([]byte(v.verifier))
-	expectedChallenge := string(challenge[:])
-
-	if v.challenge != expectedChallenge {
-		return fmt.Errorf("expected %s but got %s", expectedChallenge, v.challenge)
+func VerifyCodeChallenge(codeChallenge, codeVerifier string) error {
+	expectedChallenge := CreateCodeChallenge(codeVerifier)
+	if codeChallenge != expectedChallenge {
+		return fmt.Errorf("expected %s but got %s", expectedChallenge, codeChallenge)
 	}
 	return nil
 }

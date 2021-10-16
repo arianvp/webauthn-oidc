@@ -13,12 +13,20 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
+type TokenResource struct {
+	origin          string
+	codeCache       *codeCache
+	privateJWKs     jose.JSONWebKeySet
+	clientSecretKey []byte
+}
+
 type TokenRequest struct {
 	Code         string // a time-bound use-once code
 	CodeVerifier string // must check with previous code_challenge in authorize step
 	GrantType    string // must check with previous redirect_uri in authorize step
 	RedirectURI  string // must check with previous client_id in authorize stestirng
 	ClientID     string
+	ClientSecret string
 }
 
 type TokenResponse struct {
@@ -53,76 +61,62 @@ func TokenRequestFromValues(values url.Values) TokenRequest {
 		GrantType:    values.Get("grant_type"),
 		RedirectURI:  values.Get("redirect_uri"),
 		ClientID:     values.Get("client_id"),
+		ClientSecret: values.Get("client_secret"),
 	}
 }
 
-func ParseTokenRequest(req *http.Request) (*TokenRequest, error) {
-	if err := req.ParseForm(); err != nil {
-		return nil, err
-	}
+func ParseTokenRequest(req *http.Request) TokenRequest {
+	req.ParseForm()
 	tokenRequest := TokenRequestFromValues(req.Form)
-	return &tokenRequest, nil
-
+	clientID, clientSecret, hasBasicAuth := req.BasicAuth()
+	if hasBasicAuth {
+		// I think the presedence here is correct as client_id is only
+		// required if BasicAuth is _not_ present
+		// TODO read spec more closely
+		tokenRequest.ClientID = clientID
+		tokenRequest.ClientSecret = clientSecret
+	}
+	return tokenRequest
 }
 
-func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.Request) {
-	if req.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
-	tokenRequest, err := ParseTokenRequest(req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	state := server.codeCache.del(tokenRequest.Code)
+func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6749Error) {
+	state := t.codeCache.del(tokenRequest.Code)
 	if state == nil {
-		ErrInvalidGrant.RespondJSON(w)
-		return
+		return nil, ErrInvalidGrant
 	}
 
-	// Bind authorization code to a confidential client or PKCE challenge.  In
-	// this case, the attacker lacks the secret to request the code exchange.
-	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics#section-4.2.4
-	authorized := false
-
+	// if code_verifier is present, it must be valid to succeed
 	if tokenRequest.CodeVerifier != "" {
-		verifier := codeVerifier{
-			challenge: state.codeChallenge,
-			verifier:  tokenRequest.CodeVerifier,
-			method:    state.codeChallengeMethod,
+		if err := VerifyCodeChallenge(state.codeChallenge, tokenRequest.CodeVerifier); err != nil {
+			return nil, ErrInvalidRequest.WithDescription(err.Error())
 		}
-
-		authorized = authorized && true
-
-		if err := verifier.Verify(); err != nil {
-			// TODO is this the correct reponse?
-			ErrInvalidRequest.WithDescription(err.Error()).RespondJSON(w)
-			return
-		}
-
-	}
-	clientID, clientSecret, hasBasicAuth := req.BasicAuth()
-
-	if !hasBasicAuth {
-		clientID = req.Form.Get("client_id")
-		clientSecret = req.Form.Get("client_secret")
 	}
 
-	if clientID != "" && clientSecret != "" {
-		authorized = authorized && (clientID == state.clientID && clientSecret == state.clientSecret)
+	resp, err := RegisterClient(t.clientSecretKey, state.redirectURI)
+	if err != nil {
+		return nil, ErrInvalidRequest.WithDescription(err.Error())
+	}
+
+	if tokenRequest.ClientID != resp.ClientID {
+		return nil, ErrUnauthorizedClient
+	}
+
+	authorized := false
+	if tokenRequest.ClientSecret == "" && tokenRequest.CodeVerifier != "" {
+		// public client
+		authorized = true
+	} else if tokenRequest.ClientSecret == resp.ClientSecret {
+		// confidential client
+		authorized = true
 	}
 
 	if !authorized {
-		ErrUnauthorizedClient.RespondJSON(w)
-		return
+		return nil, ErrUnauthorizedClient
 	}
 
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.RS256,
-		Key:       server.privateJWKs.Key(string(jose.RS256))[0],
+		Key:       t.privateJWKs.Key(string(jose.RS256))[0],
 	}, &jose.SignerOptions{})
 
 	if err != nil {
@@ -134,7 +128,7 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	hasher := sha256.New()
 	hasher.Write(state.credential.ID)
 	hasher.Write(state.credential.PublicKey)
-	hasher.Write([]byte(state.clientID))
+	hasher.Write([]byte(tokenRequest.ClientID))
 	// NOTE: only taking 160 bits makes the subject a bit more readable while still
 	// being plenty collision resistant
 	subject := base64.RawURLEncoding.EncodeToString(hasher.Sum(nil)[:20])
@@ -149,9 +143,9 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	accessTokenEpiresIn := jwt.NewNumericDate(now.Add(10 * time.Minute))
 
 	claims := jwt.Claims{
-		Issuer:    server.origin,
+		Issuer:    t.origin,
 		Subject:   subject,
-		Audience:  []string{server.origin},
+		Audience:  []string{t.origin},
 		Expiry:    accessTokenEpiresIn,
 		NotBefore: jwt.NewNumericDate(now),
 		IssuedAt:  jwt.NewNumericDate(now),
@@ -176,9 +170,9 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 	jti = base64.RawURLEncoding.EncodeToString(rawJTI)
 
 	claims = jwt.Claims{
-		Issuer:    server.origin,
+		Issuer:    t.origin,
 		Subject:   subject,
-		Audience:  []string{state.clientID},
+		Audience:  []string{tokenRequest.ClientID},
 		Expiry:    jwt.NewNumericDate(now.Add(10 * time.Hour)),
 		NotBefore: jwt.NewNumericDate(now),
 		IssuedAt:  jwt.NewNumericDate(now),
@@ -205,7 +199,20 @@ func (server *AuthorizationServer) handleToken(w http.ResponseWriter, req *http.
 		ExpiresIn:   accessTokenEpiresIn,
 	}
 
+	return &tokenResponse, nil
+}
+
+func (t *TokenResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	tokenRequest := ParseTokenRequest(req)
+	tokenResponse, err := t.Handle(tokenRequest)
+	if err != nil {
+		err.RespondJSON(w)
+		return
+	}
 	w.Header().Add("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(tokenResponse)
-
 }

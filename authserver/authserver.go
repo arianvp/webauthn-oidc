@@ -53,9 +53,6 @@ type AuthorizationServer struct {
 
 	codeCache *codeCache
 
-	publicJWKs  jose.JSONWebKeySet
-	privateJWKs jose.JSONWebKeySet
-
 	config *OpenidConfiguration
 
 	sessionStore *sessions.CookieStore
@@ -66,8 +63,6 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, privateR
 	server := AuthorizationServer{}
 	server.rpID = rpID
 	server.origin = origin
-	server.codeCache = newCodeCache()
-
 	server.clientSecretKey = clientSecretKey
 
 	sessionStore := sessions.NewCookieStore(cookieKeys...)
@@ -89,8 +84,13 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, privateR
 		Use:       "sig",
 	}
 
-	server.privateJWKs.Keys = []jose.JSONWebKey{privateECDSAJWK, privateRSAJWK}
-	server.publicJWKs.Keys = []jose.JSONWebKey{privateECDSAJWK.Public(), privateRSAJWK.Public()}
+	privateJWKS := jose.JSONWebKeySet{
+		Keys: []jose.JSONWebKey{privateECDSAJWK, privateRSAJWK},
+	}
+
+	publicJWKs := jose.JSONWebKeySet{
+		Keys: []jose.JSONWebKey{privateECDSAJWK.Public(), privateRSAJWK.Public()},
+	}
 
 	server.config = &OpenidConfiguration{
 		Issuer:                            origin,
@@ -112,12 +112,35 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, privateR
 	server.Handle(openidConfiguration, http.HandlerFunc(server.handleOpenidConfiguration))
 	server.Handle(oauthAuthorizationServer, http.HandlerFunc(server.handleOpenidConfiguration))
 	server.Handle(authorize, http.HandlerFunc(server.handleAuthorize))
-	server.Handle(token, http.HandlerFunc(server.handleToken))
-	server.Handle(wellKnownJwks, http.HandlerFunc(server.handleWellknownJwks))
-	server.Handle(register, http.HandlerFunc(server.handleRegister))
-	server.Handle(userinfo, http.HandlerFunc(server.handleUserinfo))
+	server.Handle(token, &TokenResource{
+		origin:      origin,
+		codeCache:   newCodeCache(),
+		privateJWKs: privateJWKS,
+	})
+	server.Handle(wellKnownJwks, &JWKSResource{
+		publicJWKS: publicJWKs,
+	})
+	server.Handle(register, &RegistrationResource{
+		clientSecretKey: clientSecretKey,
+	})
+	server.Handle(userinfo, &UserInfoResource{
+		accessTokenPublicJWKs: publicJWKs,
+	})
 
 	return server
+}
+
+type JWKSResource struct {
+	publicJWKS jose.JSONWebKeySet
+}
+
+func (r *JWKSResource) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		rw.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(r.publicJWKS)
 }
 
 func (server *AuthorizationServer) handleOpenidConfiguration(w http.ResponseWriter, req *http.Request) {
@@ -128,18 +151,6 @@ func (server *AuthorizationServer) handleOpenidConfiguration(w http.ResponseWrit
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(server.config); err != nil {
 		http.Error(w, "encoding error", http.StatusInternalServerError)
-		return
-	}
-}
-
-func (server *AuthorizationServer) handleWellknownJwks(w http.ResponseWriter, req *http.Request) {
-	if req.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(server.publicJWKs); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
