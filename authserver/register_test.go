@@ -105,13 +105,13 @@ func TestRejectInvalidURI2(t *testing.T) {
 	server := RegistrationResource{
 		clientSecretKey: []byte("helllo"),
 	}
-	body := "{\"redirect_uris\":[\"\nexamplelocalhost\"]}"
+	body := "{\"redirect_uris\":[\"\\nexamplelocalhost\"]}"
 	req := httptest.NewRequest("POST", "/register", strings.NewReader(body))
 	w := httptest.NewRecorder()
 	server.ServeHTTP(w, req)
 	var x RFC6749Error
 	json.NewDecoder(w.Result().Body).Decode(&x)
-	if {
-		t.Errorf("Expected BadRequest")
+	if x.ErrorField != "invalid_redirect_uri" {
+		t.Errorf("Expected invalid_redirect_uri but got %v", x.ErrorField)
 	}
 }
