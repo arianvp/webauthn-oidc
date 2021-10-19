@@ -1,8 +1,10 @@
 package authserver
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -70,5 +72,46 @@ func TestHandleRegisterRejcetsGet(t *testing.T) {
 	server.ServeHTTP(w, req)
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("Expected method not allowed")
+	}
+}
+
+func TestHandleRegisterWorks(t *testing.T) {
+	server := RegistrationResource{
+		clientSecretKey: []byte("helllo"),
+	}
+	body := "{\"redirect_uris\":[\"https://localhost\"]}"
+	req := httptest.NewRequest("POST", "/register", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Errorf("Expected status_created")
+	}
+}
+
+func TestRejectsInvalidJSON(t *testing.T) {
+	server := RegistrationResource{
+		clientSecretKey: []byte("helllo"),
+	}
+	body := "{\"redirect_uris:[\"https://localhost\"]}"
+	req := httptest.NewRequest("POST", "/register", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected BadRequest")
+	}
+}
+
+func TestRejectInvalidURI2(t *testing.T) {
+	server := RegistrationResource{
+		clientSecretKey: []byte("helllo"),
+	}
+	body := "{\"redirect_uris\":[\"\nexamplelocalhost\"]}"
+	req := httptest.NewRequest("POST", "/register", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, req)
+	var x RFC6749Error
+	json.NewDecoder(w.Result().Body).Decode(&x)
+	if {
+		t.Errorf("Expected BadRequest")
 	}
 }
