@@ -114,14 +114,10 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 		return nil, ErrUnauthorizedClient
 	}
 
-	signer, err := jose.NewSigner(jose.SigningKey{
-		Algorithm: jose.RS256,
-		Key:       t.privateJWKs.Key(string(jose.RS256))[0],
+	signer, _ := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.SignatureAlgorithm(t.privateJWKs.Keys[0].Algorithm),
+		Key:       t.privateJWKs.Keys[0],
 	}, &jose.SignerOptions{})
-
-	if err != nil {
-		panic(err)
-	}
 
 	now := time.Now()
 
