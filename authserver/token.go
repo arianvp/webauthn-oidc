@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/duo-labs/webauthn/webauthn"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/json"
 	"gopkg.in/square/go-jose.v2/jwt"
@@ -79,6 +80,17 @@ func ParseTokenRequest(req *http.Request) TokenRequest {
 	return tokenRequest
 }
 
+func makeSubject(credential webauthn.Credential, clientID string) string {
+
+	hasher := sha256.New()
+	hasher.Write(credential.ID)
+	hasher.Write(credential.PublicKey)
+	hasher.Write([]byte(clientID))
+	// NOTE: only taking 160 bits makes the subject a bit more readable while still
+	// being plenty collision resistant
+	return base64.RawURLEncoding.EncodeToString(hasher.Sum(nil)[:20])
+}
+
 func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6749Error) {
 	state := t.codeCache.del(tokenRequest.Code)
 	if state == nil {
@@ -121,13 +133,7 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 
 	now := time.Now()
 
-	hasher := sha256.New()
-	hasher.Write(state.credential.ID)
-	hasher.Write(state.credential.PublicKey)
-	hasher.Write([]byte(tokenRequest.ClientID))
-	// NOTE: only taking 160 bits makes the subject a bit more readable while still
-	// being plenty collision resistant
-	subject := base64.RawURLEncoding.EncodeToString(hasher.Sum(nil)[:20])
+	subject := makeSubject(*state.credential, tokenRequest.ClientID)
 
 	rawJTI := make([]byte, 32)
 	if _, err := rand.Read(rawJTI); err != nil {
@@ -183,7 +189,7 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 		AuthTime: jwt.NumericDate(state.authTime),
 	}
 
-	idToken, err := jwt.Signed(signer).Claims(claims).Claims(openIDClaims).CompactSerialize()
+	idToken, err := jwt.Signed(signer).Claims(claims).Claims(openIDClaims).FullSerialize()
 	if err != nil {
 		panic(err)
 	}
