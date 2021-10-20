@@ -28,6 +28,14 @@ jobs:
       - name: Build app
         run: |
           nix build -L .\?rev=$(git rev-parse HEAD)
+      - name: Generate provenance
+        run: |
+          ./scripts/bom.sh > bom.json
+      - name: Upload provenance
+        uses: actions/upload-artifact@v2
+        with:
+          name: bom.json
+          path: bom.json
       - name: Build container
         run: |
           nix build -L .\?rev=$(git rev-parse HEAD)#container
