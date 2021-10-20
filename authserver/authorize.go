@@ -16,6 +16,14 @@ import (
 	"github.com/gorilla/sessions"
 )
 
+type AuthorizeResource struct {
+	rpID   string
+	origin string
+
+	sessionStore sessions.Store
+	codeCache    *codeCache
+}
+
 type AuthorizeRequest struct {
 	Request             string `json:"request,omitempty"`
 	ResponseType        string `json:"response_type,omitempty"`
@@ -135,7 +143,7 @@ func FinishAuthenticate(challenge string, authorizeRequest AuthorizeRequest, red
 
 }
 
-func (server *AuthorizationServer) handleAuthorize(w http.ResponseWriter, req *http.Request) {
+func (server *AuthorizeResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if err := req.ParseForm(); err != nil {
 		ErrInvalidRequest.WithDescription("invalid syntax").RespondJSON(w)
 		return
