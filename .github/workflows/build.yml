@@ -36,7 +36,7 @@ jobs:
         run: |
           revParse=$(git rev-parse HEAD)
           imageTag="$(nix eval --raw .\?rev=$revParse#container.imageTag)"
-          ./result | gzip --fast | skopeo copy --dest-creds "$DOCKER_LOGIN" docker-archive:/dev/tdin "docker://quay.io/arianvp/webauthn-oidc:$imageTag"
+          ./result | gzip --fast | skopeo copy --dest-creds "$DOCKER_LOGIN" docker-archive:/dev/stdin "docker://quay.io/arianvp/webauthn-oidc:$imageTag"
 
           skopeo copy --dest-creds "$DOCKER_LOGIN" "docker://quay.io/arianvp/webauthn-oidc:"{"$imageTag","${{ github.sha }}"}
         env:
