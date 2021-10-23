@@ -66,6 +66,7 @@
             kind
             kubectl
             kubelogin-oidc
+            cosign
             vault-bin
           ];
         };

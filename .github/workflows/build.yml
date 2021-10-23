@@ -25,18 +25,15 @@ jobs:
         with:
           path: $HOME/.cache/nix
           key: ${{ runner.os }}-${{ hashFiles('**/flake.nix') }}-${{ hashFiles('**/flake.lock') }}
-      - name: Build app
-        run: |
-          nix build -L .\?rev=$(git rev-parse HEAD)
       - name: Build container
         run: |
-          nix build -L .\?rev=$(git rev-parse HEAD)#container
+          nix build -L .\?rev=$(git rev-parse HEAD)#streamContainer
 
       - name: Push container
         run: |
           revParse=$(git rev-parse HEAD)
           imageTag="$(nix eval --raw .\?rev=$revParse#container.imageTag)"
-          skopeo copy --dest-creds "$DOCKER_LOGIN" docker-archive:./result "docker://quay.io/arianvp/webauthn-oidc:$imageTag"
+          ./result | gzip --fast | skopeo copy --dest-creds "$DOCKER_LOGIN" docker-archive:/dev/stdin "docker://quay.io/arianvp/webauthn-oidc:$imageTag"
 
           skopeo copy --dest-creds "$DOCKER_LOGIN" "docker://quay.io/arianvp/webauthn-oidc:"{"$imageTag","${{ github.sha }}"}
         env:
