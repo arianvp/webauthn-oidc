@@ -62,7 +62,6 @@
           nativeBuildInputs = [
             bashInteractive
             go
-            mkcert
             kind
             kubectl
             kubelogin-oidc
