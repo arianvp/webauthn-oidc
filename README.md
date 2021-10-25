@@ -1,5 +1,8 @@
 # Webauthn-oidc
 
+!! This is probably full of game-breaking bugs !!
+
+
 [![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/arianvp/webauthn-oidc)
 
 Webauthn-oidc is a very minimal OIDC authorization server that only supports
@@ -30,7 +33,7 @@ kubectl oidc-login setup --oidc-issuer-url https://oidc.arianvp.me --oidc-client
 https://user-images.githubusercontent.com/628387/136426174-1e9b1400-2672-4949-8296-c27b28f102d6.mp4
 
 
-  
+
 ## Registering an Oauth Client
 
 webauthn-oidc implements the Dynamic Registration standard:
