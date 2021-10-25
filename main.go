@@ -40,7 +40,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	authserver := authserver.New(*rpID, *origin, ecdsaKey, rsaKey, [][]byte{cookieKey}, clientSecretKey)
+	authserver := authserver.New(*rpID, *origin, ecdsaKey, rsaKey, [][]byte{cookieKey}, []byte("testing"))
 	if err != nil {
 		log.Fatal(err)
 	}
