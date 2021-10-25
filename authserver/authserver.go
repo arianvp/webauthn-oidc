@@ -45,19 +45,19 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, privateR
 		Use:       "sig",
 	}
 
-	privateRSAJWK := jose.JSONWebKey{
-		Key:       privateRSAKey,
-		KeyID:     string(jose.RS256),
-		Algorithm: string(jose.RS256),
-		Use:       "sig",
-	}
+	//privateRSAJWK := jose.JSONWebKey{
+	//	Key:       privateRSAKey,
+	//	KeyID:     string(jose.RS256),
+	//	Algorithm: string(jose.RS256),
+	//	Use:       "sig",
+	//}
 
 	privateJWKS := jose.JSONWebKeySet{
-		Keys: []jose.JSONWebKey{privateECDSAJWK, privateRSAJWK},
+		Keys: []jose.JSONWebKey{privateECDSAJWK},
 	}
 
 	publicJWKs := jose.JSONWebKeySet{
-		Keys: []jose.JSONWebKey{privateECDSAJWK.Public(), privateRSAJWK.Public()},
+		Keys: []jose.JSONWebKey{privateECDSAJWK.Public()},
 	}
 
 	var supportedAlgs []jose.SignatureAlgorithm
