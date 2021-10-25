@@ -166,10 +166,12 @@ func TestClientIDClientSecretCodeVerifierWorks(t *testing.T) {
 		ClientSecret: expectedClient.ClientSecret,
 	}
 
-	_, err := tokenResource.Handle(tokenRequest)
-
+	response, err := tokenResource.Handle(tokenRequest)
 	if err != nil {
 		t.Errorf("Expected success but got %v", err)
+	}
+	if len(strings.Split(response.IDToken, ".")) != 3 {
+		t.Errorf("Expected compact serialized jwt token but got something else")
 	}
 }
 
