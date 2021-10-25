@@ -84,24 +84,24 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, privateR
 
 	server.Handle(openidConfigurationPath, &openidConfiguration)
 	server.Handle(oauthAuthorizationServerPath, &openidConfiguration)
-	server.Handle(openidConfiguration.AuthEndpoint, &AuthorizeResource{
+	server.Handle(authorize, &AuthorizeResource{
 		rpID:         rpID,
-		origin:       openidConfiguration.Issuer,
+		origin:       origin,
 		sessionStore: sessionStore,
 		codeCache:    codeCache,
 	})
-	server.Handle(openidConfiguration.TokenEndpoint, &TokenResource{
-		origin:      openidConfiguration.Issuer,
+	server.Handle(token, &TokenResource{
+		origin:      origin,
 		codeCache:   codeCache,
 		privateJWKs: privateJWKS,
 	})
-	server.Handle(openidConfiguration.JWKSURI, &JWKSResource{
+	server.Handle(wellKnownJwks, &JWKSResource{
 		publicJWKS: publicJWKs,
 	})
-	server.Handle(openidConfiguration.RegistrationEndpoint, &RegistrationResource{
+	server.Handle(register, &RegistrationResource{
 		clientSecretKey: clientSecretKey,
 	})
-	server.Handle(openidConfiguration.UserinfoEndpoint, &UserInfoResource{
+	server.Handle(userinfo, &UserInfoResource{
 		accessTokenPublicJWKs: publicJWKs,
 	})
 
