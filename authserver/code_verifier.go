@@ -2,11 +2,14 @@ package authserver
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 )
 
 func CreateCodeChallenge(codeVerifier string) (codeChallenge string) {
-	codeChallenge = string(sha256.New().Sum([]byte(codeVerifier)))
+	h := sha256.New()
+	h.Write([]byte(codeVerifier))
+	codeChallenge = base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 	return
 }
 
