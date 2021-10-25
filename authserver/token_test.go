@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -82,6 +83,7 @@ func TestClientIDClientSecretBasicAuthWorks(t *testing.T) {
 	if parsedTokenRequest.ClientSecret != expectedClient.ClientSecret {
 		t.Errorf("ClientSecret did not match")
 	}
+
 }
 
 func TestClientSecretFormPostWorks(t *testing.T) {
@@ -195,4 +197,29 @@ func TestRejectsNonPost(t *testing.T) {
 	if rw.Result().StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("Expected %d but got %d", http.StatusMethodNotAllowed, rw.Result().StatusCode)
 	}
+}
+
+func TestOIDCRegression(t *testing.T) {
+
+	clientID := "irBPYTc9dfJKnngmuIQ7-xkiPAFBM7d1YVtzifx_L58"
+	clientSecret := "E9cKDe8KwPL_QljAEiMTAQQ7vUhUI5TGQDSWcEo96m8"
+
+	tokenResource.codeCache.c["LPRymY6PpxPdePhXv05MNJA9JYBar5S9S5mYrxyJSQFat4RZe7r_dtS5LPEyS910v1jWO5cV7gz7U25YyHekYw"] = &state{
+		redirectURI: "https://www.certification.openid.net/test/a/webauthn-oidc/callback",
+	}
+
+	body := "grant_type=authorization_code&code=LPRymY6PpxPdePhXv05MNJA9JYBar5S9S5mYrxyJSQFat4RZe7r_dtS5LPEyS910v1jWO5cV7gz7U25YyHekYw&redirect_uri=https%3A%2F%2Fwww.certification.openid.net%2Ftest%2Fa%2Fwebauthn-oidc%2Fcallback"
+	req := httptest.NewRequest(http.MethodPost, tokenResource.origin+"/token", strings.NewReader(body))
+	req.SetBasicAuth(clientID, clientSecret)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
+
+	w := httptest.NewRecorder()
+	tokenResource.ServeHTTP(w, req)
+	resp := w.Result()
+	content, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Errorf("Expected token to be created but got %s", string(content))
+	}
+
 }
