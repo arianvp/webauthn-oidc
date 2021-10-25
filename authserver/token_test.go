@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -37,7 +36,7 @@ func init() {
 		origin:          "https://localhost",
 		codeCache:       codeCache,
 		privateJWKs:     jose.JSONWebKeySet{Keys: []jose.JSONWebKey{privateRSAJWK}},
-		clientSecretKey: []byte{},
+		clientSecretKey: []byte("trying"),
 	}
 }
 
@@ -202,24 +201,34 @@ func TestRejectsNonPost(t *testing.T) {
 func TestOIDCRegression(t *testing.T) {
 
 	clientID := "irBPYTc9dfJKnngmuIQ7-xkiPAFBM7d1YVtzifx_L58"
-	clientSecret := "E9cKDe8KwPL_QljAEiMTAQQ7vUhUI5TGQDSWcEo96m8"
+	redirectURI := "https://www.certification.openid.net/test/a/webauthn-oidc/callback"
 
 	tokenResource.codeCache.c["LPRymY6PpxPdePhXv05MNJA9JYBar5S9S5mYrxyJSQFat4RZe7r_dtS5LPEyS910v1jWO5cV7gz7U25YyHekYw"] = &state{
-		redirectURI: "https://www.certification.openid.net/test/a/webauthn-oidc/callback",
+		redirectURI: redirectURI,
+		credential:  &webauthn.Credential{},
+	}
+
+	client, err := RegisterClient(tokenResource.clientSecretKey, redirectURI)
+	if err != nil {
+		t.Errorf("Expected client but got error")
+	}
+
+	if client.ClientID != clientID {
+		t.Errorf("Expected client ids to be equal")
+		t.FailNow()
 	}
 
 	body := "grant_type=authorization_code&code=LPRymY6PpxPdePhXv05MNJA9JYBar5S9S5mYrxyJSQFat4RZe7r_dtS5LPEyS910v1jWO5cV7gz7U25YyHekYw&redirect_uri=https%3A%2F%2Fwww.certification.openid.net%2Ftest%2Fa%2Fwebauthn-oidc%2Fcallback"
 	req := httptest.NewRequest(http.MethodPost, tokenResource.origin+"/token", strings.NewReader(body))
-	req.SetBasicAuth(clientID, clientSecret)
+	req.SetBasicAuth(client.ClientID, client.ClientSecret)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
 
 	w := httptest.NewRecorder()
 	tokenResource.ServeHTTP(w, req)
 	resp := w.Result()
-	content, _ := io.ReadAll(resp.Body)
 
-	if resp.StatusCode != http.StatusCreated {
-		t.Errorf("Expected token to be created but got %s", string(content))
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected token to be created but got %s", resp.Status)
 	}
 
 }
