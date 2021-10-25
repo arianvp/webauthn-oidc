@@ -237,6 +237,7 @@ func (server *AuthorizeResource) ServeHTTP(w http.ResponseWriter, req *http.Requ
 		switch req.Method {
 		case http.MethodGet:
 			BeginAuthenticate(w, req, challengeSession, authorizeRequest, redirectURI, query)
+			return
 		case http.MethodPost:
 			challenge, ok := challengeSession.Values["challenge"].(string)
 			if !ok {
