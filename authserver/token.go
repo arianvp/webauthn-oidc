@@ -189,7 +189,7 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 		AuthTime: jwt.NumericDate(state.authTime),
 	}
 
-	idToken, err := jwt.Signed(signer).Claims(claims).Claims(openIDClaims).FullSerialize()
+	idToken, err := jwt.Signed(signer).Claims(claims).Claims(openIDClaims).CompactSerialize()
 	if err != nil {
 		panic(err)
 	}
