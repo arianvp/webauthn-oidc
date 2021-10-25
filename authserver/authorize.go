@@ -268,7 +268,7 @@ func (server *AuthorizeResource) ServeHTTP(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	if authorizeRequest.CodeChallengeMethod != "S256" {
+	if authorizeRequest.CodeChallengeMethod != "" && authorizeRequest.CodeChallengeMethod != "S256" {
 		ErrInvalidRequest.WithDescription("only S256 is supported.").RespondRedirect(w, redirectURI, query)
 		return
 	}
