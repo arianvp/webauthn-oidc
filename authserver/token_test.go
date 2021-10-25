@@ -220,7 +220,7 @@ func TestOIDCRegression(t *testing.T) {
 
 	body := "grant_type=authorization_code&code=LPRymY6PpxPdePhXv05MNJA9JYBar5S9S5mYrxyJSQFat4RZe7r_dtS5LPEyS910v1jWO5cV7gz7U25YyHekYw&redirect_uri=https%3A%2F%2Fwww.certification.openid.net%2Ftest%2Fa%2Fwebauthn-oidc%2Fcallback"
 	req := httptest.NewRequest(http.MethodPost, tokenResource.origin+"/token", strings.NewReader(body))
-	req.Header.Set("Authorization", "Basic aXJCUFlUYzlkZkpLbm5nbXVJUTcteGtpUEFGQk03ZDFZVnR6aWZ4X0w1ODpMQnVIcDEzVUI2SnNObHJjNEFzS0Q4REJpYTdISE9tN25QZVRsM2cwZkMw")
+	req.SetBasicAuth(client.ClientID, client.ClientSecret)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
 
 	w := httptest.NewRecorder()

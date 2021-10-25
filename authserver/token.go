@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -110,13 +109,9 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 		return nil, ErrInvalidRequest.WithDescription(err.Error())
 	}
 
-	log.Printf("reg: client_id=%s, client_secret=%s", resp.ClientID, resp.ClientSecret)
-
 	if tokenRequest.ClientID != resp.ClientID {
-		return nil, ErrUnauthorizedClient.WithDescription("ClientID mismatch")
+		return nil, ErrUnauthorizedClient
 	}
-
-	log.Printf("client_id=%s, client_secret=%s, code_verifier=%s", tokenRequest.ClientID, tokenRequest.ClientSecret, tokenRequest.CodeVerifier)
 
 	authorized := false
 	if tokenRequest.ClientSecret == "" && tokenRequest.CodeVerifier != "" {
