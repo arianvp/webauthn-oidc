@@ -36,7 +36,7 @@ func init() {
 		origin:          "https://localhost",
 		codeCache:       codeCache,
 		privateJWKs:     jose.JSONWebKeySet{Keys: []jose.JSONWebKey{privateRSAJWK}},
-		clientSecretKey: []byte("testing"),
+		clientSecretKey: []byte("trying"),
 	}
 }
 
