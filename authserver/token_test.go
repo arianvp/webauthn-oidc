@@ -36,7 +36,7 @@ func init() {
 		origin:          "https://localhost",
 		codeCache:       codeCache,
 		privateJWKs:     jose.JSONWebKeySet{Keys: []jose.JSONWebKey{privateRSAJWK}},
-		clientSecretKey: []byte{},
+		clientSecretKey: []byte("trying"),
 	}
 }
 
@@ -82,6 +82,7 @@ func TestClientIDClientSecretBasicAuthWorks(t *testing.T) {
 	if parsedTokenRequest.ClientSecret != expectedClient.ClientSecret {
 		t.Errorf("ClientSecret did not match")
 	}
+
 }
 
 func TestClientSecretFormPostWorks(t *testing.T) {
@@ -165,10 +166,12 @@ func TestClientIDClientSecretCodeVerifierWorks(t *testing.T) {
 		ClientSecret: expectedClient.ClientSecret,
 	}
 
-	_, err := tokenResource.Handle(tokenRequest)
-
+	response, err := tokenResource.Handle(tokenRequest)
 	if err != nil {
 		t.Errorf("Expected success but got %v", err)
+	}
+	if len(strings.Split(response.IDToken, ".")) != 3 {
+		t.Errorf("Expected compact serialized jwt token but got something else")
 	}
 }
 
@@ -195,4 +198,39 @@ func TestRejectsNonPost(t *testing.T) {
 	if rw.Result().StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("Expected %d but got %d", http.StatusMethodNotAllowed, rw.Result().StatusCode)
 	}
+}
+
+func TestOIDCRegression(t *testing.T) {
+
+	clientID := "irBPYTc9dfJKnngmuIQ7-xkiPAFBM7d1YVtzifx_L58"
+	redirectURI := "https://www.certification.openid.net/test/a/webauthn-oidc/callback"
+
+	tokenResource.codeCache.c["LPRymY6PpxPdePhXv05MNJA9JYBar5S9S5mYrxyJSQFat4RZe7r_dtS5LPEyS910v1jWO5cV7gz7U25YyHekYw"] = &state{
+		redirectURI: redirectURI,
+		credential:  &webauthn.Credential{},
+	}
+
+	client, err := RegisterClient(tokenResource.clientSecretKey, redirectURI)
+	if err != nil {
+		t.Errorf("Expected client but got error")
+	}
+
+	if client.ClientID != clientID {
+		t.Errorf("Expected client ids to be equal")
+		t.FailNow()
+	}
+
+	body := "grant_type=authorization_code&code=LPRymY6PpxPdePhXv05MNJA9JYBar5S9S5mYrxyJSQFat4RZe7r_dtS5LPEyS910v1jWO5cV7gz7U25YyHekYw&redirect_uri=https%3A%2F%2Fwww.certification.openid.net%2Ftest%2Fa%2Fwebauthn-oidc%2Fcallback"
+	req := httptest.NewRequest(http.MethodPost, tokenResource.origin+"/token", strings.NewReader(body))
+	req.SetBasicAuth(client.ClientID, client.ClientSecret)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
+
+	w := httptest.NewRecorder()
+	tokenResource.ServeHTTP(w, req)
+	resp := w.Result()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected token to be created but got %s", resp.Status)
+	}
+
 }

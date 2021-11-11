@@ -91,9 +91,10 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, privateR
 		codeCache:    codeCache,
 	})
 	server.Handle(token, &TokenResource{
-		origin:      origin,
-		codeCache:   codeCache,
-		privateJWKs: privateJWKS,
+		origin:          origin,
+		codeCache:       codeCache,
+		privateJWKs:     privateJWKS,
+		clientSecretKey: clientSecretKey,
 	})
 	server.Handle(wellKnownJwks, &JWKSResource{
 		publicJWKS: publicJWKs,

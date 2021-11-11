@@ -25,7 +25,9 @@ type RegistrationResponse struct {
 }
 
 func GenerateClientIDRaw(redirectURI string) []byte {
-	return sha256.New().Sum([]byte(redirectURI))
+	h := sha256.New()
+	h.Write([]byte(redirectURI))
+	return h.Sum(nil)
 }
 func GenerateClientID(redirectURI string) string {
 	return base64.RawURLEncoding.EncodeToString(GenerateClientIDRaw(redirectURI))
@@ -39,7 +41,8 @@ func RegisterClient(clientSecretKey []byte, redirectURI string) (*RegistrationRe
 	}
 	clientIDRaw := GenerateClientIDRaw(redirectURI)
 	hmacer := hmac.New(sha256.New, clientSecretKey)
-	clientSecretRaw := hmacer.Sum(clientIDRaw)
+	hmacer.Write(clientIDRaw)
+	clientSecretRaw := hmacer.Sum(nil)
 	return &RegistrationResponse{
 		ClientID:     base64.RawURLEncoding.EncodeToString(clientIDRaw),
 		ClientSecret: base64.RawURLEncoding.EncodeToString(clientSecretRaw),
