@@ -113,6 +113,10 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 		return nil, ErrInvalidRequest.WithDescription(err.Error())
 	}
 
+	if tokenRequest.RedirectURI != state.redirectURI {
+		return nil, ErrInvalidRequest
+	}
+
 	if tokenRequest.ClientID != resp.ClientID {
 		return nil, ErrUnauthorizedClient
 	}
