@@ -92,6 +92,10 @@ func makeSubject(credential webauthn.Credential, clientID string) string {
 }
 
 func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6749Error) {
+	if tokenRequest.GrantType != "authorization_code" {
+		return nil, ErrInvalidRequest
+	}
+
 	state := t.codeCache.del(tokenRequest.Code)
 	if state == nil {
 		return nil, ErrInvalidGrant
