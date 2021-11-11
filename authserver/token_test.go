@@ -418,6 +418,15 @@ func TestRejectsNonPost(t *testing.T) {
 	}
 }
 
+func TestRejectsWithJSON(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, tokenResource.origin+"/token", nil)
+	rw := httptest.NewRecorder()
+	tokenResource.ServeHTTP(rw, req)
+	if rw.Result().StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected %d but got %d", http.StatusMethodNotAllowed, rw.Result().StatusCode)
+	}
+}
+
 func TestOIDCRegression(t *testing.T) {
 
 	clientID := "irBPYTc9dfJKnngmuIQ7-xkiPAFBM7d1YVtzifx_L58"

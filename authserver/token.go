@@ -108,6 +108,7 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 		}
 	}
 
+	// TODO: Move clientID into state? it's lame to have this invalid state here that never happens
 	resp, err := RegisterClient(t.clientSecretKey, state.redirectURI)
 	if err != nil {
 		return nil, ErrInvalidRequest.WithDescription(err.Error())
