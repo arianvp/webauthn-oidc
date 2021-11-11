@@ -92,6 +92,10 @@ func makeSubject(credential webauthn.Credential, clientID string) string {
 }
 
 func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6749Error) {
+	if tokenRequest.GrantType != "authorization_code" {
+		return nil, ErrInvalidRequest
+	}
+
 	state := t.codeCache.del(tokenRequest.Code)
 	if state == nil {
 		return nil, ErrInvalidGrant
@@ -104,9 +108,14 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 		}
 	}
 
+	// TODO: Move clientID into state? it's lame to have this invalid state here that never happens
 	resp, err := RegisterClient(t.clientSecretKey, state.redirectURI)
 	if err != nil {
 		return nil, ErrInvalidRequest.WithDescription(err.Error())
+	}
+
+	if tokenRequest.RedirectURI != state.redirectURI {
+		return nil, ErrInvalidRequest
 	}
 
 	if tokenRequest.ClientID != resp.ClientID {

@@ -56,7 +56,7 @@ func TestClientIDClientSecretWorks(t *testing.T) {
 	expectedClient, _ := RegisterClient(tokenResource.clientSecretKey, redirectURI)
 	tokenRequest := TokenRequest{
 		Code:         code,
-		GrantType:    "",
+		GrantType:    "authorization_code",
 		RedirectURI:  redirectURI,
 		ClientID:     expectedClient.ClientID,
 		ClientSecret: expectedClient.ClientSecret,
@@ -125,7 +125,7 @@ func TestClientIDCodeVerifierWorks(t *testing.T) {
 	tokenRequest := TokenRequest{
 		Code:         code,
 		CodeVerifier: codeVerifier,
-		GrantType:    "",
+		GrantType:    "authorization_code",
 		RedirectURI:  redirectURI,
 		ClientID:     expectedClient.ClientID,
 		ClientSecret: "",
@@ -160,7 +160,7 @@ func TestClientIDClientSecretCodeVerifierWorks(t *testing.T) {
 	tokenRequest := TokenRequest{
 		Code:         code,
 		CodeVerifier: codeVerifier,
-		GrantType:    "",
+		GrantType:    "authorization_code",
 		RedirectURI:  redirectURI,
 		ClientID:     expectedClient.ClientID,
 		ClientSecret: expectedClient.ClientSecret,
@@ -176,19 +176,237 @@ func TestClientIDClientSecretCodeVerifierWorks(t *testing.T) {
 }
 
 func TestClientIDWrongClientSecretDoesNotWork(t *testing.T) {
+	redirectURI := "https://localhost/redirect"
+	code, _ := tokenResource.codeCache.newCode(&state{
+		redirectURI: redirectURI,
+		nonce:       "blah",
+		authTime:    0,
+		credential: &webauthn.Credential{
+			ID:              []byte{},
+			PublicKey:       []byte{},
+			AttestationType: "none",
+			Authenticator:   webauthn.Authenticator{},
+		},
+	})
+	expectedClient, _ := RegisterClient(tokenResource.clientSecretKey, redirectURI)
+	tokenRequest := TokenRequest{
+		Code:         code,
+		GrantType:    "authorization_code",
+		RedirectURI:  redirectURI,
+		ClientID:     expectedClient.ClientID,
+		ClientSecret: expectedClient.ClientSecret + "lol",
+	}
+	_, err := tokenResource.Handle(tokenRequest)
+	if err == nil {
+		t.Errorf("Expected an erro but got a response")
+	}
+}
 
+func TestWrongClientIDDoesNotWork(t *testing.T) {
+	redirectURI := "https://localhost/redirect"
+	code, _ := tokenResource.codeCache.newCode(&state{
+		redirectURI: redirectURI,
+		nonce:       "blah",
+		authTime:    0,
+		credential: &webauthn.Credential{
+			ID:              []byte{},
+			PublicKey:       []byte{},
+			AttestationType: "none",
+			Authenticator:   webauthn.Authenticator{},
+		},
+	})
+	expectedClient, _ := RegisterClient(tokenResource.clientSecretKey, redirectURI)
+	tokenRequest := TokenRequest{
+		Code:         code,
+		GrantType:    "authorization_code",
+		RedirectURI:  redirectURI,
+		ClientID:     expectedClient.ClientID + "lol",
+		ClientSecret: expectedClient.ClientSecret,
+	}
+	_, err := tokenResource.Handle(tokenRequest)
+	if err == nil {
+		t.Errorf("Expected an error but got a response")
+	}
 }
 
 func TestClientIDWrongClientSecretCodeVerifierDoesNotWork(t *testing.T) {
 
+	redirectURI := "https://localhost/redirect"
+	codeVerifierRaw := make([]byte, 32)
+	rand.Read(codeVerifierRaw)
+	codeVerifier := base64.RawStdEncoding.EncodeToString(codeVerifierRaw)
+	codeChallenge := CreateCodeChallenge(codeVerifier)
+	code, _ := tokenResource.codeCache.newCode(&state{
+		codeChallenge: codeChallenge,
+		redirectURI:   redirectURI,
+		nonce:         "blah",
+		authTime:      0,
+		credential: &webauthn.Credential{
+			ID:              []byte{},
+			PublicKey:       []byte{},
+			AttestationType: "none",
+			Authenticator:   webauthn.Authenticator{},
+		},
+	})
+	expectedClient, _ := RegisterClient(tokenResource.clientSecretKey, redirectURI)
+	tokenRequest := TokenRequest{
+		Code:         code,
+		CodeVerifier: codeVerifier,
+		GrantType:    "authorization_code",
+		RedirectURI:  redirectURI,
+		ClientID:     expectedClient.ClientID,
+		ClientSecret: expectedClient.ClientSecret + "lol",
+	}
+
+	_, err := tokenResource.Handle(tokenRequest)
+	if err == nil {
+		t.Errorf("Expected error but got success")
+	}
+
 }
 
 func TestClientIDWrongCodeVerifierDoesNotWork(t *testing.T) {
+	redirectURI := "https://localhost/redirect"
+	codeVerifierRaw := make([]byte, 32)
+	rand.Read(codeVerifierRaw)
+	codeVerifier := base64.RawStdEncoding.EncodeToString(codeVerifierRaw)
+	codeChallenge := CreateCodeChallenge(codeVerifier) + "lol"
+	code, _ := tokenResource.codeCache.newCode(&state{
+		codeChallenge: codeChallenge,
+		redirectURI:   redirectURI,
+		nonce:         "blah",
+		authTime:      0,
+		credential: &webauthn.Credential{
+			ID:              []byte{},
+			PublicKey:       []byte{},
+			AttestationType: "none",
+			Authenticator:   webauthn.Authenticator{},
+		},
+	})
+	expectedClient, _ := RegisterClient(tokenResource.clientSecretKey, redirectURI)
+	tokenRequest := TokenRequest{
+		Code:         code,
+		CodeVerifier: codeVerifier,
+		GrantType:    "authorization_code",
+		RedirectURI:  redirectURI,
+		ClientID:     expectedClient.ClientID,
+		ClientSecret: "",
+	}
+
+	_, err := tokenResource.Handle(tokenRequest)
+
+	if err == nil {
+		t.Errorf("Expected failure")
+	}
+}
+
+func TestInvalidGrantIsRejected(t *testing.T) {
+
+	redirectURI := "https://localhost/redirect"
+	codeVerifierRaw := make([]byte, 32)
+	rand.Read(codeVerifierRaw)
+	codeVerifier := base64.RawStdEncoding.EncodeToString(codeVerifierRaw)
+	codeChallenge := CreateCodeChallenge(codeVerifier)
+	code, _ := tokenResource.codeCache.newCode(&state{
+		codeChallenge: codeChallenge,
+		redirectURI:   redirectURI,
+		nonce:         "blah",
+		authTime:      0,
+		credential: &webauthn.Credential{
+			ID:              []byte{},
+			PublicKey:       []byte{},
+			AttestationType: "none",
+			Authenticator:   webauthn.Authenticator{},
+		},
+	})
+	expectedClient, _ := RegisterClient(tokenResource.clientSecretKey, redirectURI)
+	tokenRequest := TokenRequest{
+		Code:         code,
+		CodeVerifier: codeVerifier,
+		GrantType:    "autxxxhorization_code",
+		RedirectURI:  redirectURI,
+		ClientID:     expectedClient.ClientID,
+		ClientSecret: "",
+	}
+
+	_, err := tokenResource.Handle(tokenRequest)
+
+	if err == nil {
+		t.Errorf("Expected failure")
+	}
 
 }
 
-func TestClientIDWrongClientSecretWrongCodeVerifierDoesNotWork(t *testing.T) {
+func TestInvalidRedirectURIIsRejected(t *testing.T) {
 
+	redirectURI := "https://localhost/redirect"
+	codeVerifierRaw := make([]byte, 32)
+	rand.Read(codeVerifierRaw)
+	codeVerifier := base64.RawStdEncoding.EncodeToString(codeVerifierRaw)
+	codeChallenge := CreateCodeChallenge(codeVerifier)
+	code, _ := tokenResource.codeCache.newCode(&state{
+		codeChallenge: codeChallenge,
+		redirectURI:   redirectURI,
+		nonce:         "blah",
+		authTime:      0,
+		credential: &webauthn.Credential{
+			ID:              []byte{},
+			PublicKey:       []byte{},
+			AttestationType: "none",
+			Authenticator:   webauthn.Authenticator{},
+		},
+	})
+	expectedClient, _ := RegisterClient(tokenResource.clientSecretKey, redirectURI)
+	tokenRequest := TokenRequest{
+		Code:         code,
+		CodeVerifier: codeVerifier,
+		GrantType:    "authorization_code",
+		RedirectURI:  redirectURI + "other",
+		ClientID:     expectedClient.ClientID,
+		ClientSecret: "",
+	}
+
+	_, err := tokenResource.Handle(tokenRequest)
+
+	if err == nil {
+		t.Errorf("Expected failure")
+	}
+
+}
+
+func TestInvalidCodeIsRejected(t *testing.T) {
+	redirectURI := "https://localhost/redirect"
+	codeVerifierRaw := make([]byte, 32)
+	rand.Read(codeVerifierRaw)
+	codeVerifier := base64.RawStdEncoding.EncodeToString(codeVerifierRaw)
+	codeChallenge := CreateCodeChallenge(codeVerifier)
+	code, _ := tokenResource.codeCache.newCode(&state{
+		codeChallenge: codeChallenge,
+		redirectURI:   redirectURI,
+		nonce:         "blah",
+		authTime:      0,
+		credential: &webauthn.Credential{
+			ID:              []byte{},
+			PublicKey:       []byte{},
+			AttestationType: "none",
+			Authenticator:   webauthn.Authenticator{},
+		},
+	})
+	expectedClient, _ := RegisterClient(tokenResource.clientSecretKey, redirectURI)
+	tokenRequest := TokenRequest{
+		Code:         code + "invalid",
+		CodeVerifier: codeVerifier,
+		GrantType:    "authorization_code",
+		RedirectURI:  redirectURI,
+		ClientID:     expectedClient.ClientID,
+		ClientSecret: "",
+	}
+
+	_, err := tokenResource.Handle(tokenRequest)
+
+	if err == nil {
+		t.Errorf("Expected failure")
+	}
 }
 
 func TestRejectsNonPost(t *testing.T) {
@@ -196,6 +414,15 @@ func TestRejectsNonPost(t *testing.T) {
 	rw := httptest.NewRecorder()
 	tokenResource.ServeHTTP(rw, req)
 	if rw.Result().StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("Expected %d but got %d", http.StatusMethodNotAllowed, rw.Result().StatusCode)
+	}
+}
+
+func TestRejectsWithJSON(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, tokenResource.origin+"/token", nil)
+	rw := httptest.NewRecorder()
+	tokenResource.ServeHTTP(rw, req)
+	if rw.Result().StatusCode != http.StatusBadRequest {
 		t.Errorf("Expected %d but got %d", http.StatusMethodNotAllowed, rw.Result().StatusCode)
 	}
 }
