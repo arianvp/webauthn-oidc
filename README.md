@@ -16,6 +16,8 @@ certificate that your hardware token provides on signup. This means that we don'
 No secrets are shared anywhere either. We implement PKCE for peforming the
 challenge between client and server.
 
+hi ci
+
 ## Demo
 In this demo you'll be able to authenticate to a local kubernetes kind cluster.
 
