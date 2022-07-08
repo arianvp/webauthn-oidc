@@ -225,5 +225,9 @@ func (t *TokenResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	w.Header().Add("Content-Type", "application/json")
+	w.Header().Add("Access-Control-Allow-Origin", "*")
+	w.Header().Add("Access-Control-Allow-Credentials", "true")
+	w.Header().Add("Access-Control-Allow-Methods", "POST")
+	w.Header().Add("Access-Control-Allow-Headers", "Content-Type, Authorization")
 	json.NewEncoder(w).Encode(tokenResponse)
 }
