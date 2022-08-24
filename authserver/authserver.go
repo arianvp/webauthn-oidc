@@ -34,7 +34,7 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, privateR
 
 	codeCache := newCodeCache()
 
-	sessionStore := sessions.NewCookieStore(cookieKeys...)
+	sessionStore := sessions.NewFilesystemStore("", cookieKeys...)
 	sessionStore.Options.HttpOnly = true
 	sessionStore.Options.Secure = true
 
