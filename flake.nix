@@ -65,7 +65,6 @@
             kind
             kubectl
             kubelogin-oidc
-            vault-bin
           ];
         };
       });

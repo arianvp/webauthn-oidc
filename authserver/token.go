@@ -1,23 +1,25 @@
 package authserver
 
 import (
+	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/arianvp/webauthn-oidc/jwt"
+	"github.com/arianvp/webauthn-oidc/oidc"
 	"github.com/duo-labs/webauthn/webauthn"
-	"gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/json"
-	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 type TokenResource struct {
 	origin          string
 	codeCache       *codeCache
-	privateJWKs     jose.JSONWebKeySet
+	privateKey      *ecdsa.PrivateKey
+	privateKeyId    string
 	clientSecretKey []byte
 }
 
@@ -31,10 +33,10 @@ type TokenRequest struct {
 }
 
 type TokenResponse struct {
-	AccessToken string           `json:"access_token,omitempty"`
-	IDToken     string           `json:"id_token,omitempty"`
-	TokenType   string           `json:"token_type,omitempty"`
-	ExpiresIn   *jwt.NumericDate `json:"expires_in,omitempty"`
+	AccessToken string `json:"access_token,omitempty"`
+	IDToken     string `json:"id_token,omitempty"`
+	TokenType   string `json:"token_type,omitempty"`
+	ExpiresIn   int64  `json:"expires_in,omitempty"`
 }
 
 type AMR string
@@ -46,14 +48,6 @@ const (
 	Fingerprint AMR = "fpt"
 	MultiFactor AMR = "mfa"
 )
-
-type OpenIDClaims struct {
-	Nonce    string          `json:"nonce,omitempty"`
-	AtHash   string          `json:"at_hash"`
-	CHash    string          `json:"c_hash,omitempty"`
-	AMR      []AMR           `json:"amr,omitempty"`
-	AuthTime jwt.NumericDate `json:"auth_time,omitempty"`
-}
 
 func TokenRequestFromValues(values url.Values) TokenRequest {
 	return TokenRequest{
@@ -135,11 +129,6 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 		return nil, ErrUnauthorizedClient
 	}
 
-	signer, _ := jose.NewSigner(jose.SigningKey{
-		Algorithm: jose.SignatureAlgorithm(t.privateJWKs.Keys[0].Algorithm),
-		Key:       t.privateJWKs.Keys[0],
-	}, &jose.SignerOptions{})
-
 	now := time.Now()
 
 	subject := makeSubject(*state.credential, tokenRequest.ClientID)
@@ -151,19 +140,18 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 
 	jti := base64.RawURLEncoding.EncodeToString(rawJTI)
 
-	accessTokenEpiresIn := jwt.NewNumericDate(now.Add(10 * time.Minute))
+	accessTokenEpiresIn := now.Add(10 * time.Minute)
 
-	claims := jwt.Claims{
-		Issuer:    t.origin,
-		Subject:   subject,
-		Audience:  []string{t.origin},
-		Expiry:    accessTokenEpiresIn,
-		NotBefore: jwt.NewNumericDate(now),
-		IssuedAt:  jwt.NewNumericDate(now),
-		ID:        jti,
+	claims := jwt.ClaimSet{
+		Issuer:   t.origin,
+		Subject:  subject,
+		Audience: []string{t.origin},
+		Expiry:   accessTokenEpiresIn.Unix(),
+		IssuedAt: now.Unix(),
+		JwtId:    jti,
 	}
 
-	accessToken, err := jwt.Signed(signer).Claims(claims).CompactSerialize()
+	accessToken, err := jwt.EncodeAndSign(&claims, t.privateKeyId, t.privateKey)
 	if err != nil {
 		panic(err)
 	}
@@ -180,34 +168,24 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 	}
 	jti = base64.RawURLEncoding.EncodeToString(rawJTI)
 
-	claims = jwt.Claims{
-		Issuer:    t.origin,
-		Subject:   subject,
-		Audience:  []string{tokenRequest.ClientID},
-		Expiry:    jwt.NewNumericDate(now.Add(10 * time.Hour)),
-		NotBefore: jwt.NewNumericDate(now),
-		IssuedAt:  jwt.NewNumericDate(now),
-		ID:        jti,
+	oidcClaims := oidc.ClaimSet{
+		Issuer:          t.origin,
+		Subject:         subject,
+		Audience:        []string{tokenRequest.ClientID},
+		Expiry:          now.Add(10 * time.Hour).Unix(),
+		IssuedAt:        now.Unix(),
+		ClaimSet:        jwt.ClaimSet{JwtId: jti, NotBefore: now.Unix()},
+		AccessTokenHash: atHash,
+		CodeHash:        cHash,
 	}
 
-	openIDClaims := OpenIDClaims{
-		Nonce:    state.nonce,
-		AtHash:   atHash,
-		CHash:    cHash,
-		AMR:      []AMR{HardwareKey, MultiFactor},
-		AuthTime: jwt.NumericDate(state.authTime),
-	}
-
-	idToken, err := jwt.Signed(signer).Claims(claims).Claims(openIDClaims).CompactSerialize()
-	if err != nil {
-		panic(err)
-	}
+	idToken, err := jwt.EncodeAndSign(oidcClaims, t.privateKeyId, t.privateKey)
 
 	tokenResponse := TokenResponse{
 		AccessToken: accessToken,
 		IDToken:     idToken,
 		TokenType:   "Bearer",
-		ExpiresIn:   accessTokenEpiresIn,
+		ExpiresIn:   accessTokenEpiresIn.Unix(),
 	}
 
 	return &tokenResponse, nil

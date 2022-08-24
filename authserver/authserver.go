@@ -2,12 +2,11 @@ package authserver
 
 import (
 	"crypto/ecdsa"
-	"crypto/rsa"
 	"embed"
 	"net/http"
 
+	"github.com/arianvp/webauthn-oidc/jwk"
 	"github.com/gorilla/sessions"
-	"gopkg.in/square/go-jose.v2"
 )
 
 //go:embed *.html
@@ -29,7 +28,7 @@ type AuthorizationServer struct {
 }
 
 // TODO because we are dynamic we must support implict and code grant
-func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, privateRSAKey *rsa.PrivateKey, cookieKeys [][]byte, clientSecretKey []byte) AuthorizationServer {
+func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, cookieKeys [][]byte, clientSecretKey []byte) AuthorizationServer {
 	server := AuthorizationServer{}
 
 	codeCache := newCodeCache()
@@ -38,32 +37,11 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, privateR
 	sessionStore.Options.HttpOnly = true
 	sessionStore.Options.Secure = true
 
-	privateECDSAJWK := jose.JSONWebKey{
-		Key:       privateECDSAKey,
-		KeyID:     string(jose.ES256),
-		Algorithm: string(jose.ES256),
-		Use:       "sig",
+	publicJWKs := jwk.JWKSet{
+		Keys: []jwk.JWK{jwk.New("key", privateECDSAKey.PublicKey)},
 	}
 
-	//privateRSAJWK := jose.JSONWebKey{
-	//	Key:       privateRSAKey,
-	//	KeyID:     string(jose.RS256),
-	//	Algorithm: string(jose.RS256),
-	//	Use:       "sig",
-	//}
-
-	privateJWKS := jose.JSONWebKeySet{
-		Keys: []jose.JSONWebKey{privateECDSAJWK},
-	}
-
-	publicJWKs := jose.JSONWebKeySet{
-		Keys: []jose.JSONWebKey{privateECDSAJWK.Public()},
-	}
-
-	var supportedAlgs []jose.SignatureAlgorithm
-	for _, v := range publicJWKs.Keys {
-		supportedAlgs = append(supportedAlgs, jose.SignatureAlgorithm(v.Algorithm))
-	}
+	supportedAlgs := []string{"ES256"}
 
 	openidConfiguration := OpenidConfiguration{
 		Issuer:                            origin,
@@ -93,7 +71,8 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, privateR
 	server.Handle(token, &TokenResource{
 		origin:          origin,
 		codeCache:       codeCache,
-		privateJWKs:     privateJWKS,
+		privateKey:      privateECDSAKey,
+		privateKeyId:    "key",
 		clientSecretKey: clientSecretKey,
 	})
 	server.Handle(wellKnownJwks, &JWKSResource{
