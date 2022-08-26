@@ -3,7 +3,6 @@ package authserver
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -11,17 +10,18 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/arianvp/webauthn-oidc/session"
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/webauthn"
-	"github.com/gorilla/sessions"
 )
 
 type AuthorizeResource struct {
 	rpID   string
 	origin string
 
-	sessionStore sessions.Store
-	codeCache    *codeCache
+	challengeSessionStore session.SessionStore[ChallengeSession]
+	loginSessionStore     session.SessionStore[LoginSession]
+	codeCache             *codeCache
 }
 
 type AuthorizeRequest struct {
@@ -60,15 +60,16 @@ func AuthorizeRequestFromValues(values url.Values) AuthorizeRequest {
 	}
 }
 
-func BeginAuthenticate(w http.ResponseWriter, req *http.Request, session *sessions.Session, authorizeRequest AuthorizeRequest, redirectURI *url.URL, query url.Values) {
+func (res *AuthorizeResource) AuthBeginAuthenticate(w http.ResponseWriter, req *http.Request, session *ChallengeSession, authorizeRequest AuthorizeRequest, redirectURI *url.URL, query url.Values) {
 	challenge, err := protocol.CreateChallenge()
 	if err != nil {
 		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 		return
 	}
 
-	session.Values["challenge"] = challenge.String()
-	if err := session.Save(req, w); err != nil {
+	session.Challenge = challenge.String()
+
+	if err := res.challengeSessionStore.UpdateSession(req, "challengeSession", session); err != nil {
 		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 		return
 	}
@@ -143,6 +144,15 @@ func FinishAuthenticate(challenge string, authorizeRequest AuthorizeRequest, red
 
 }
 
+type ChallengeSession struct {
+	Challenge string
+}
+type LoginSession struct {
+	MaxAge     int
+	AuthTime   int64
+	Credential string
+}
+
 func (server *AuthorizeResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if err := req.ParseForm(); err != nil {
 		ErrInvalidRequest.WithDescription("invalid syntax").RespondJSON(w)
@@ -185,11 +195,6 @@ func (server *AuthorizeResource) ServeHTTP(w http.ResponseWriter, req *http.Requ
 		ErrUnsupportedResponseType.RespondRedirect(w, redirectURI, query)
 		return
 	}
-
-	loginSession, err := server.sessionStore.Get(req, "loginSession")
-	if err != nil {
-		log.Println(err.Error())
-	}
 	var maxAge int64
 	if authorizeRequest.MaxAge != "" {
 		// TODO push parsing logic to the FromValues function
@@ -198,25 +203,36 @@ func (server *AuthorizeResource) ServeHTTP(w http.ResponseWriter, req *http.Requ
 			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 			return
 		}
-		loginSession.Options.MaxAge = int(maxAge)
 	}
-	loginSession.Options.SameSite = http.SameSiteLaxMode
-	challengeSession, err := server.sessionStore.Get(req, "challengeSession")
-	challengeSession.Options.SameSite = http.SameSiteStrictMode
-	challengeSession.Options.MaxAge = 0
+
+	loginSession, err := server.loginSessionStore.GetOrCreateSession(req, w, &session.CookieSettings{
+		Name:     "loginSession",
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int(maxAge),
+	})
+	if err != nil {
+		ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+		return
+	}
+	loginSession.MaxAge = int(maxAge)
+
+	challengeSession, err := server.challengeSessionStore.GetOrCreateSession(req, w, &session.CookieSettings{
+		Name:     "challengeSession",
+		SameSite: http.SameSiteStrictMode,
+	})
+	if err != nil {
+		ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+		return
+	}
 
 	var credential *webauthn.Credential = new(webauthn.Credential)
-	rawCredential, ok := loginSession.Values["credential"].([]byte)
-	if !ok {
-		credential = nil
-	} else {
-		if err := json.Unmarshal(rawCredential, credential); err != nil {
-			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-			return
-		}
+	rawCredential := loginSession.Credential
+	if err := json.Unmarshal([]byte(rawCredential), credential); err != nil {
+		ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+		return
 	}
 
-	authTime, _ := loginSession.Values["auth_time"].(int64)
+	authTime := loginSession.AuthTime
 	now := time.Now().Unix()
 
 	// Expired
@@ -236,37 +252,35 @@ func (server *AuthorizeResource) ServeHTTP(w http.ResponseWriter, req *http.Requ
 	if credential == nil {
 		switch req.Method {
 		case http.MethodGet:
-			BeginAuthenticate(w, req, challengeSession, authorizeRequest, redirectURI, query)
+			server.AuthBeginAuthenticate(w, req, challengeSession, authorizeRequest, redirectURI, query)
 			return
 		case http.MethodPost:
-			challenge, ok := challengeSession.Values["challenge"].(string)
-			if !ok {
-				ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-				return
-			}
+			challenge := challengeSession.Challenge
 			var oauthError *RFC6749Error
 			credential, oauthError = FinishAuthenticate(challenge, authorizeRequest, redirectURI, query, server.rpID, server.origin)
 			if oauthError != nil {
 				oauthError.RespondRedirect(w, redirectURI, query)
 				return
 			}
-			loginSession.Values["credential"], err = json.Marshal(credential)
-			authTime = time.Now().Unix()
-			loginSession.Values["auth_time"] = authTime
-
+			credentialBytes, err := json.Marshal(credential)
 			if err != nil {
 				ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 				return
 			}
+			loginSession.Credential = string(credentialBytes)
+			authTime = time.Now().Unix()
+			loginSession.AuthTime = authTime
+
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
 	}
 
-	if err := loginSession.Save(req, w); err != nil {
+	if err := server.loginSessionStore.UpdateSession(req, "loginSession", loginSession); err != nil {
 		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 		return
+
 	}
 
 	if authorizeRequest.CodeChallengeMethod != "" && authorizeRequest.CodeChallengeMethod != "S256" {

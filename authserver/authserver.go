@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/arianvp/webauthn-oidc/jwk"
-	"github.com/gorilla/sessions"
+	"github.com/arianvp/webauthn-oidc/session"
 )
 
 //go:embed *.html
@@ -33,9 +33,8 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, cookieKe
 
 	codeCache := newCodeCache()
 
-	sessionStore := sessions.NewFilesystemStore("", cookieKeys...)
-	sessionStore.Options.HttpOnly = true
-	sessionStore.Options.Secure = true
+	// TODO firestore
+	challengeSessionStore := session.NewFireStore[ChallengeSession](nil)
 
 	publicJWKs := jwk.JWKSet{
 		Keys: []jwk.JWK{jwk.New("key", privateECDSAKey.PublicKey)},
@@ -63,10 +62,10 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, cookieKe
 	server.Handle(openidConfigurationPath, &openidConfiguration)
 	server.Handle(oauthAuthorizationServerPath, &openidConfiguration)
 	server.Handle(authorize, &AuthorizeResource{
-		rpID:         rpID,
-		origin:       origin,
-		sessionStore: sessionStore,
-		codeCache:    codeCache,
+		rpID:                  rpID,
+		origin:                origin,
+		challengeSessionStore: challengeSessionStore,
+		codeCache:             codeCache,
 	})
 	server.Handle(token, &TokenResource{
 		origin:          origin,
