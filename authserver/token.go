@@ -180,6 +180,9 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 	}
 
 	idToken, err := jwt.EncodeAndSign(oidcClaims, t.privateKeyId, t.privateKey)
+	if err != nil {
+		panic(err)
+	}
 
 	tokenResponse := TokenResponse{
 		AccessToken: accessToken,

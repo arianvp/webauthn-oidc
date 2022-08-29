@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -8,7 +9,9 @@ import (
 	"log"
 	"net/http"
 
+	"cloud.google.com/go/firestore"
 	"github.com/arianvp/webauthn-oidc/authserver"
+	"github.com/arianvp/webauthn-oidc/session"
 )
 
 var (
@@ -38,22 +41,18 @@ func main() {
 		log.Fatal(err)
 	}
 
-	authserver := authserver.New(*rpID, *origin, ecdsaKey, [][]byte{cookieKey}, clientSecretKey)
+	firestoreClient, err := firestore.NewClient(context.TODO(), firestore.DetectProjectID)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	challengeSessionStore := session.NewFireStore[authserver.ChallengeSession](firestoreClient)
+	loginSessionStore := session.NewFireStore[authserver.LoginSession](firestoreClient)
+
+	authserver := authserver.New(*rpID, *origin, ecdsaKey, [][]byte{cookieKey}, clientSecretKey, challengeSessionStore, loginSessionStore)
 	if *noTLS {
 		log.Fatal(http.ListenAndServe("[::]:"+*port, &authserver))
 	} else {
 		log.Fatal(http.ListenAndServeTLS("[::]:"+*port, *certFile, *keyFile, &authserver))
 	}
-
-	// test
-
-	/*oauthclient, err := oauthclient.New(serverOrigin, clientID, redirectURI)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Fatal(http.ListenAndServe("[::]:"+clientPort, oauthclient))*/
 }

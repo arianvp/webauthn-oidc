@@ -28,13 +28,10 @@ type AuthorizationServer struct {
 }
 
 // TODO because we are dynamic we must support implict and code grant
-func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, cookieKeys [][]byte, clientSecretKey []byte) AuthorizationServer {
+func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, cookieKeys [][]byte, clientSecretKey []byte, challengeSessionStore session.SessionStore[ChallengeSession], loginSessionStore session.SessionStore[LoginSession]) AuthorizationServer {
 	server := AuthorizationServer{}
 
 	codeCache := newCodeCache()
-
-	// TODO firestore
-	challengeSessionStore := session.NewFireStore[ChallengeSession](nil)
 
 	publicJWKs := jwk.JWKSet{
 		Keys: []jwk.JWK{jwk.New("key", privateECDSAKey.PublicKey)},
@@ -65,6 +62,7 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, cookieKe
 		rpID:                  rpID,
 		origin:                origin,
 		challengeSessionStore: challengeSessionStore,
+		loginSessionStore:     loginSessionStore,
 		codeCache:             codeCache,
 	})
 	server.Handle(token, &TokenResource{
