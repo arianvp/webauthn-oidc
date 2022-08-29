@@ -29,13 +29,13 @@ func (r *UserInfoResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	var claims jwt.ClaimSet
-	err := jwt.DecodeAndVerify(bearer[1], func(keyID string) (*ecdsa.PublicKey, error) {
+	err := jwt.DecodeAndVerify(bearer[1], token, func(keyID string) (*ecdsa.PublicKey, error) {
 		pubKey, err := r.accessTokenPublicJWKs.Get(keyID)
 		if err != nil {
 			return nil, err
 		}
 		return pubKey.GetPublicKey()
-	}, token)
+	})
 	if err != nil {
 		ErrTokenSignatureMismatch.RespondJSON(w)
 		return

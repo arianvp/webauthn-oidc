@@ -38,7 +38,9 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, cookieKe
 	sessionStore.Options.Secure = true
 
 	publicJWKs := jwk.JWKSet{
-		Keys: []jwk.JWK{jwk.New("key", privateECDSAKey.PublicKey)},
+		Keys: []jwk.JWK{
+			jwk.New("key", privateECDSAKey.PublicKey),
+		},
 	}
 
 	supportedAlgs := []string{"ES256"}

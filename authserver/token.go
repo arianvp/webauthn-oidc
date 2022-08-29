@@ -142,7 +142,7 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 
 	accessTokenEpiresIn := now.Add(10 * time.Minute)
 
-	claims := jwt.ClaimSet{
+	claims := &jwt.ClaimSet{
 		Issuer:   t.origin,
 		Subject:  subject,
 		Audience: []string{t.origin},
@@ -151,7 +151,7 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 		JwtId:    jti,
 	}
 
-	accessToken, err := jwt.EncodeAndSign(&claims, t.privateKeyId, t.privateKey)
+	accessToken, err := jwt.EncodeAndSign(claims, t.privateKeyId, t.privateKey)
 	if err != nil {
 		panic(err)
 	}
@@ -168,18 +168,24 @@ func (t *TokenResource) Handle(tokenRequest TokenRequest) (*TokenResponse, *RFC6
 	}
 	jti = base64.RawURLEncoding.EncodeToString(rawJTI)
 
-	oidcClaims := oidc.ClaimSet{
-		Issuer:          t.origin,
-		Subject:         subject,
-		Audience:        []string{tokenRequest.ClientID},
-		Expiry:          now.Add(10 * time.Hour).Unix(),
-		IssuedAt:        now.Unix(),
-		ClaimSet:        jwt.ClaimSet{JwtId: jti, NotBefore: now.Unix()},
+	oidcClaims := &oidc.ClaimSet{
+		Issuer:   t.origin,
+		Subject:  subject,
+		Audience: []string{tokenRequest.ClientID},
+		Expiry:   now.Add(10 * time.Hour).Unix(),
+		IssuedAt: now.Unix(),
+		ClaimSet: jwt.ClaimSet{
+			JwtId:     jti,
+			NotBefore: now.Unix(),
+		},
 		AccessTokenHash: atHash,
 		CodeHash:        cHash,
 	}
 
 	idToken, err := jwt.EncodeAndSign(oidcClaims, t.privateKeyId, t.privateKey)
+	if err != nil {
+		panic(err)
+	}
 
 	tokenResponse := TokenResponse{
 		AccessToken: accessToken,

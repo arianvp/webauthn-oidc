@@ -4,9 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
 	"math/big"
 )
 
@@ -68,20 +66,6 @@ func curveByName(curveName string) (elliptic.Curve, error) {
 	}
 }
 
-func EncodePublicKey(w io.Writer, keyID string, pubKey ecdsa.PublicKey) error {
-
-	encoder := json.NewEncoder(w)
-
-	curveBits := pubKey.Curve.Params().BitSize
-	keyBytes := curveBits / 8
-	if curveBits%8 > 0 {
-		keyBytes += 1
-	}
-
-	publicKeyJWK := New(keyID, pubKey)
-	return encoder.Encode(&publicKeyJWK)
-}
-
 func (jwk *JWK) GetPublicKey() (*ecdsa.PublicKey, error) {
 	curve, err := curveByName(jwk.Curve)
 	if err != nil {
@@ -98,28 +82,9 @@ func (jwk *JWK) GetPublicKey() (*ecdsa.PublicKey, error) {
 		return nil, err
 	}
 
-	publicKey := ecdsa.PublicKey{
+	return &ecdsa.PublicKey{
 		Curve: curve,
 		X:     x,
 		Y:     y,
-	}
-
-	return &publicKey, nil
-}
-
-// Decodes a jwk and returns the kid and the public key
-func DecodePublicKey(jwk string) (string, *ecdsa.PublicKey, error) {
-
-	publicKeyJWK := &JWK{}
-
-	err := json.Unmarshal([]byte(jwk), publicKeyJWK)
-	if err != nil {
-		return "", nil, err
-	}
-	publicKey, err := publicKeyJWK.GetPublicKey()
-	if err != nil {
-		return "", nil, err
-	}
-	return publicKeyJWK.KeyID, publicKey, nil
-
+	}, nil
 }
