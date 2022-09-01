@@ -35,7 +35,7 @@ type ClaimSet struct {
 }
 
 func EncodeAndSign(claims interface{}, keyID string, privateKey *ecdsa.PrivateKey) (string, error) {
-	header := header{
+	header := &header{
 		Algorithm: "ES256",
 		Typ:       "JWT",
 		KeyID:     keyID,
@@ -63,15 +63,9 @@ func EncodeAndSign(claims interface{}, keyID string, privateKey *ecdsa.PrivateKe
 	if curveBits%8 > 0 {
 		keyBytes++
 	}
-	rBytes := r.Bytes()
-	rBytesPadded := make([]byte, keyBytes)
-	copy(rBytesPadded[keyBytes-len(rBytes):], rBytes)
-
-	sBytes := s.Bytes()
-	sBytesPadded := make([]byte, keyBytes)
-	copy(sBytesPadded[keyBytes-len(sBytes):], sBytes)
-
-	signature := append(rBytesPadded, sBytesPadded...)
+	signature := make([]byte, keyBytes*2)
+	r.FillBytes(signature[:keyBytes])
+	s.FillBytes(signature[keyBytes:])
 	signatureB64 := base64.RawURLEncoding.EncodeToString(signature)
 
 	return strings.Join([]string{headerB64, claimsB64, signatureB64}, "."), nil
@@ -91,16 +85,20 @@ func DecodeAndVerify(jwt string, claims interface{}, getPublicKey func(keyID str
 	if err := json.Unmarshal(h, &h2); err != nil {
 		return err
 	}
+
 	if h2.Typ != "JWT" {
 		return fmt.Errorf("jwt: Unexpected type: %s", h2.Typ)
 	}
+
 	if h2.Algorithm != "ES256" {
 		return fmt.Errorf("jwt: Unsupported algorithm: %s", h2.Algorithm)
 	}
+
 	publicKey, err := getPublicKey(h2.KeyID)
 	if err != nil {
 		return err
 	}
+
 	c, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return err
