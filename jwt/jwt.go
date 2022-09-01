@@ -51,7 +51,7 @@ func EncodeAndSign(claims interface{}, keyID string, privateKey *ecdsa.PrivateKe
 	}
 	claimsB64 := base64.RawURLEncoding.EncodeToString(claimsJSON)
 
-	toSign := strings.Join([]string{headerB64, claimsB64}, ".")
+	toSign := headerB64 + "." + claimsB64
 	hash := sha256.Sum256([]byte(toSign))
 	r, s, err := ecdsa.Sign(rand.Reader, privateKey, hash[:])
 	if err != nil {
@@ -68,7 +68,7 @@ func EncodeAndSign(claims interface{}, keyID string, privateKey *ecdsa.PrivateKe
 	s.FillBytes(signature[keyBytes:])
 	signatureB64 := base64.RawURLEncoding.EncodeToString(signature)
 
-	return strings.Join([]string{headerB64, claimsB64, signatureB64}, "."), nil
+	return toSign + "." + signatureB64, nil
 
 }
 
