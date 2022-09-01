@@ -99,14 +99,11 @@ func DecodeAndVerify(jwt string, claims interface{}, getPublicKey func(keyID str
 		return err
 	}
 
-	c, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return err
-	}
 	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil {
 		return err
 	}
+
 	toSign := parts[0] + "." + parts[1]
 	hash := sha256.Sum256([]byte(toSign))
 	curveBits := publicKey.Curve.Params().BitSize
@@ -119,7 +116,13 @@ func DecodeAndVerify(jwt string, claims interface{}, getPublicKey func(keyID str
 	if !ecdsa.Verify(publicKey, hash[:], r, s) {
 		return fmt.Errorf("jwt: invalid signature")
 	}
-	if err := json.Unmarshal(c, claims); err != nil {
+
+	claimsB64, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(claimsB64, claims); err != nil {
 		return err
 	}
 	return nil
