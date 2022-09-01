@@ -23,7 +23,10 @@ func init() {
 	clientSecretKey := make([]byte, 32)
 	rand.Read(clientSecretKey)
 
-	privateKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		panic(err)
+	}
 
 	codeCache := newCodeCache()
 	tokenResource = TokenResource{
