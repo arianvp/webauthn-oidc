@@ -77,24 +77,24 @@ func DecodeAndVerify(jwt string, claims interface{}, getPublicKey func(keyID str
 	if len(parts) < 3 {
 		return errors.New("jwt: invalid token received")
 	}
-	h, err := base64.RawURLEncoding.DecodeString(parts[0])
+	hB64, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
 		return err
 	}
-	var h2 header
-	if err := json.Unmarshal(h, &h2); err != nil {
+	var h header
+	if err := json.Unmarshal(hB64, &h); err != nil {
 		return err
 	}
 
-	if h2.Typ != "JWT" {
-		return fmt.Errorf("jwt: Unexpected type: %s", h2.Typ)
+	if h.Typ != "JWT" {
+		return fmt.Errorf("jwt: Unexpected type: %s", h.Typ)
 	}
 
-	if h2.Algorithm != "ES256" {
-		return fmt.Errorf("jwt: Unsupported algorithm: %s", h2.Algorithm)
+	if h.Algorithm != "ES256" {
+		return fmt.Errorf("jwt: Unsupported algorithm: %s", h.Algorithm)
 	}
 
-	publicKey, err := getPublicKey(h2.KeyID)
+	publicKey, err := getPublicKey(h.KeyID)
 	if err != nil {
 		return err
 	}
