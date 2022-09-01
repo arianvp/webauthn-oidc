@@ -39,6 +39,29 @@ func New(keyID string, publicKey ecdsa.PublicKey) JWK {
 	}
 }
 
+func (jwk *JWK) GetPublicKey() (*ecdsa.PublicKey, error) {
+	curve, err := curveByName(jwk.Curve)
+	if err != nil {
+		return nil, err
+	}
+
+	x, err := decodeCoord(jwk.X)
+	if err != nil {
+		return nil, err
+	}
+
+	y, err := decodeCoord(jwk.Y)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ecdsa.PublicKey{
+		Curve: curve,
+		X:     x,
+		Y:     y,
+	}, nil
+}
+
 func encodeCoord(keyBytes int, b *big.Int) string {
 	return base64.RawURLEncoding.EncodeToString(b.FillBytes(make([]byte, keyBytes)))
 }
@@ -64,27 +87,4 @@ func curveByName(curveName string) (elliptic.Curve, error) {
 	default:
 		return nil, fmt.Errorf("unknown curveName: %s", curveName)
 	}
-}
-
-func (jwk *JWK) GetPublicKey() (*ecdsa.PublicKey, error) {
-	curve, err := curveByName(jwk.Curve)
-	if err != nil {
-		return nil, err
-	}
-
-	x, err := decodeCoord(jwk.X)
-	if err != nil {
-		return nil, err
-	}
-
-	y, err := decodeCoord(jwk.Y)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ecdsa.PublicKey{
-		Curve: curve,
-		X:     x,
-		Y:     y,
-	}, nil
 }
