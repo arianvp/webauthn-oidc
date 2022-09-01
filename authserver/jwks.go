@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"gopkg.in/square/go-jose.v2"
+	"github.com/arianvp/webauthn-oidc/jwk"
 )
 
 type JWKSResource struct {
-	publicJWKS jose.JSONWebKeySet
+	publicJWKS jwk.JWKSet
 }
 
 func (r *JWKSResource) ServeHTTP(rw http.ResponseWriter, req *http.Request) {

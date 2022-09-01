@@ -1,8 +1,9 @@
 package authserver
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/duo-labs/webauthn/webauthn"
-	"gopkg.in/square/go-jose.v2"
 )
 
 var (
@@ -23,19 +23,17 @@ func init() {
 	clientSecretKey := make([]byte, 32)
 	rand.Read(clientSecretKey)
 
-	privateRSAKey, _ := rsa.GenerateKey(rand.Reader, 2048)
-	privateRSAJWK := jose.JSONWebKey{
-		Key:       privateRSAKey,
-		KeyID:     string(jose.RS256),
-		Algorithm: string(jose.RS256),
-		Use:       "sig",
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		panic(err)
 	}
 
 	codeCache := newCodeCache()
 	tokenResource = TokenResource{
 		origin:          "https://localhost",
 		codeCache:       codeCache,
-		privateJWKs:     jose.JSONWebKeySet{Keys: []jose.JSONWebKey{privateRSAJWK}},
+		privateKey:      privateKey,
+		privateKeyId:    "lol",
 		clientSecretKey: []byte("trying"),
 	}
 }

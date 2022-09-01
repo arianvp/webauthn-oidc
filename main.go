@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"flag"
 	"log"
 	"net/http"
@@ -28,7 +27,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	cookieKey := make([]byte, 64)
 	_, err = rand.Reader.Read(cookieKey)
 	if err != nil {
@@ -40,7 +38,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	authserver := authserver.New(*rpID, *origin, ecdsaKey, rsaKey, [][]byte{cookieKey}, clientSecretKey)
+	authserver := authserver.New(*rpID, *origin, ecdsaKey, [][]byte{cookieKey}, clientSecretKey)
 	if err != nil {
 		log.Fatal(err)
 	}

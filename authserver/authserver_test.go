@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,12 +13,11 @@ func TestAllEndpointsReachable(t *testing.T) {
 	rpID := "localhost"
 	origin := "https://localhost:6443"
 	ecdsaKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	rsaKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	cookieKey := make([]byte, 64)
 	rand.Reader.Read(cookieKey)
 	clientSecretKey := make([]byte, 64)
 	rand.Reader.Read(clientSecretKey)
-	authserver := New(rpID, origin, ecdsaKey, rsaKey, [][]byte{cookieKey}, clientSecretKey)
+	authserver := New(rpID, origin, ecdsaKey, [][]byte{cookieKey}, clientSecretKey)
 
 	for _, path := range []string{openidConfigurationPath, oauthAuthorizationServerPath, register, authorize, token, userinfo, wellKnownJwks} {
 		t.Run(path, func(t *testing.T) {
