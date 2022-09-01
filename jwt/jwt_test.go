@@ -56,44 +56,44 @@ func TestExampleJWTWorks(t *testing.T) {
 		t.Fatal("Private key doesn't match public key")
 	}
 
-	claims := ClaimSet{}
-	err = DecodeAndVerify(exampleJWT, func(keyID string) (*ecdsa.PublicKey, error) {
+	claims := &ClaimSet{}
+	err = DecodeAndVerify(exampleJWT, claims, func(keyID string) (*ecdsa.PublicKey, error) {
 		if keyID == exampleKeyID {
 			return publicKey, nil
 		} else {
 			return nil, errors.New("unkown public key")
 		}
-	}, &claims)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestDecodeAndVerify(t *testing.T) {
-	claims := ClaimSet{}
+	claims := &ClaimSet{}
 
 	invalidJWT := "."
-	if err := DecodeAndVerify(invalidJWT, func(keyID string) (*ecdsa.PublicKey, error) { return nil, nil }, &claims); err == nil {
+	if err := DecodeAndVerify(invalidJWT, claims, func(keyID string) (*ecdsa.PublicKey, error) { return nil, nil }); err == nil {
 		t.Errorf("expected decode to fail, %s", err)
 	}
 
 	invalidJWT = "%.."
-	if err := DecodeAndVerify(invalidJWT, func(keyID string) (*ecdsa.PublicKey, error) { return nil, nil }, &claims); err == nil {
+	if err := DecodeAndVerify(invalidJWT, claims, func(keyID string) (*ecdsa.PublicKey, error) { return nil, nil }); err == nil {
 		t.Errorf("expected decode to fail")
 	}
 
 	invalidJWT = ".."
-	if err := DecodeAndVerify(invalidJWT, func(keyID string) (*ecdsa.PublicKey, error) { return nil, nil }, &claims); err == nil {
+	if err := DecodeAndVerify(invalidJWT, claims, func(keyID string) (*ecdsa.PublicKey, error) { return nil, nil }); err == nil {
 		t.Errorf("expected decode to fail")
 	}
 
 	invalidJWT = ".%."
-	if err := DecodeAndVerify(invalidJWT, func(keyID string) (*ecdsa.PublicKey, error) { return nil, nil }, &claims); err == nil {
+	if err := DecodeAndVerify(invalidJWT, claims, func(keyID string) (*ecdsa.PublicKey, error) { return nil, nil }); err == nil {
 		t.Errorf("expected decode to fail")
 	}
 
 	invalidJWT = "..%"
-	if err := DecodeAndVerify(invalidJWT, func(keyID string) (*ecdsa.PublicKey, error) { return nil, nil }, &claims); err == nil {
+	if err := DecodeAndVerify(invalidJWT, claims, func(keyID string) (*ecdsa.PublicKey, error) { return nil, nil }); err == nil {
 		t.Errorf("expected decode to fail")
 	}
 
@@ -105,7 +105,7 @@ func TestDecodeAndVerify(t *testing.T) {
 	headerBytes, _ := json.Marshal(invalidHeader)
 	invalidHeaderb64 := base64.RawURLEncoding.EncodeToString(headerBytes)
 	invalidJWT = invalidHeaderb64 + ".."
-	if err := DecodeAndVerify(invalidJWT, func(keyID string) (*ecdsa.PublicKey, error) { return nil, nil }, &claims); err == nil {
+	if err := DecodeAndVerify(invalidJWT, claims, func(keyID string) (*ecdsa.PublicKey, error) { return nil, nil }); err == nil {
 		t.Errorf("expected decode to fail")
 	}
 
@@ -117,7 +117,7 @@ func TestDecodeAndVerify(t *testing.T) {
 	headerBytes, _ = json.Marshal(invalidHeader)
 	invalidHeaderb64 = base64.RawURLEncoding.EncodeToString(headerBytes)
 	invalidJWT = invalidHeaderb64 + ".."
-	if err := DecodeAndVerify(invalidJWT, func(keyID string) (*ecdsa.PublicKey, error) { return nil, nil }, &claims); err == nil {
+	if err := DecodeAndVerify(invalidJWT, claims, func(keyID string) (*ecdsa.PublicKey, error) { return nil, nil }); err == nil {
 		t.Errorf("expected decode to fail")
 	}
 
@@ -126,7 +126,7 @@ func TestDecodeAndVerify(t *testing.T) {
 func FuzzRoundtripEncodeDecode(f *testing.F) {
 	f.Add("a", "b", int64(0), int64(0), int64(0), "a", "b", "c", "d", "e", "f", "g", "h")
 	f.Fuzz(func(t *testing.T, iss string, aud string, exp, auth_time, iat int64, typ, sub, nonce, acr, amr, azp, keyID string, alg string) {
-		claims := ClaimSet{
+		claims := &ClaimSet{
 			Issuer:   strings.ToValidUTF8(iss, ""),
 			Subject:  strings.ToValidUTF8(sub, ""),
 			Audience: []string{strings.ToValidUTF8(aud, "")},
@@ -152,8 +152,8 @@ func FuzzRoundtripEncodeDecode(f *testing.F) {
 			}
 		}
 
-		claims2 := ClaimSet{}
-		if err := DecodeAndVerify(jwt, fetchKey, &claims2); err != nil {
+		claims2 := &ClaimSet{}
+		if err := DecodeAndVerify(jwt, claims2, fetchKey); err != nil {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(claims, claims2) {

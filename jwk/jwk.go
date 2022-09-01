@@ -25,7 +25,7 @@ func New(keyID string, publicKey ecdsa.PublicKey) JWK {
 	curveBits := publicKey.Curve.Params().BitSize
 	keyBytes := curveBits / 8
 	if curveBits%8 > 0 {
-		keyBytes += 1
+		keyBytes++
 	}
 	return JWK{
 		KeyID:   keyID,

@@ -61,7 +61,7 @@ func EncodeAndSign(claims interface{}, keyID string, privateKey *ecdsa.PrivateKe
 
 	keyBytes := curveBits / 8
 	if curveBits%8 > 0 {
-		keyBytes += 1
+		keyBytes++
 	}
 	rBytes := r.Bytes()
 	rBytesPadded := make([]byte, keyBytes)
@@ -78,7 +78,7 @@ func EncodeAndSign(claims interface{}, keyID string, privateKey *ecdsa.PrivateKe
 
 }
 
-func DecodeAndVerify(jwt string, getPublicKey func(keyID string) (*ecdsa.PublicKey, error), claims interface{}) error {
+func DecodeAndVerify(jwt string, claims interface{}, getPublicKey func(keyID string) (*ecdsa.PublicKey, error)) error {
 	parts := strings.Split(jwt, ".")
 	if len(parts) < 3 {
 		return errors.New("jwt: invalid token received")
@@ -114,10 +114,10 @@ func DecodeAndVerify(jwt string, getPublicKey func(keyID string) (*ecdsa.PublicK
 	curveBits := publicKey.Curve.Params().BitSize
 	keyBytes := curveBits / 8
 	if curveBits%8 > 0 {
-		keyBytes += 1
+		keyBytes++
 	}
-	r := big.NewInt(0).SetBytes(signature[:keyBytes])
-	s := big.NewInt(0).SetBytes(signature[keyBytes:])
+	r := new(big.Int).SetBytes(signature[:keyBytes])
+	s := new(big.Int).SetBytes(signature[keyBytes:])
 	if !ecdsa.Verify(publicKey, hash[:], r, s) {
 		return fmt.Errorf("jwt: invalid signature")
 	}
