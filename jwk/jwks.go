@@ -1,22 +1,16 @@
 package jwk
 
-import "fmt"
+import "errors"
 
 type JWKSet struct {
-	Keys   []JWK `json:"keys"`
-	keyMap map[string]*JWK
+	Keys []JWK `json:"keys"`
 }
 
 func (j *JWKSet) Get(kid string) (*JWK, error) {
-	if j.keyMap == nil {
-		j.keyMap = make(map[string]*JWK)
-		for _, key := range j.Keys {
-			j.keyMap[key.KeyID] = &key
+	for _, p := range j.Keys {
+		if p.KeyID == kid {
+			return &p, nil
 		}
 	}
-	key, ok := j.keyMap[kid]
-	if !ok {
-		return nil, fmt.Errorf("no key found for kid: %s", kid)
-	}
-	return key, nil
+	return nil, errors.New("jwk: Pubkey not found")
 }
