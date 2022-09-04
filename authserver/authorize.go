@@ -130,7 +130,7 @@ func FinishAuthenticate(challenge string, authorizeRequest AuthorizeRequest, red
 	}
 
 	// TODO Relying Party ID
-	if err := assertionResponse.Verify(challenge, rpID, origin, false, credential.PublicKey); err != nil {
+	if err := assertionResponse.Verify(challenge, rpID, origin, "", false, credential.PublicKey); err != nil {
 		return nil, ErrRequestUnauthorized.WithDescription(err.Error())
 	}
 	return credential, nil
