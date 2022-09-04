@@ -55,7 +55,7 @@
           pname = "webauthn-oidc";
           version = "0.0.1";
           src =  pkgs.lib.cleanSource ./.;
-          vendorSha256 = "sha256-7KLcROifOyJ7ub4b9DyRTbcVXwArM6RvOEuobSuwIHQ=-";
+          vendorHash = "sha256-7xTJgC3kCysD/ez1J9W+Mp/DYJLvbEFqM6mCUvSBNMI=";
         };
 
         devShell = with pkgs; mkShell {
@@ -65,7 +65,6 @@
             kind
             kubectl
             kubelogin-oidc
-            vault-bin
           ];
         };
       });

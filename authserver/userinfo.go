@@ -1,16 +1,17 @@
 package authserver
 
 import (
+	"crypto/ecdsa"
+	"encoding/json"
 	"net/http"
 	"strings"
 
-	"gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/json"
-	"gopkg.in/square/go-jose.v2/jwt"
+	"github.com/arianvp/webauthn-oidc/jwk"
+	"github.com/arianvp/webauthn-oidc/jwt"
 )
 
 type UserInfoResource struct {
-	accessTokenPublicJWKs jose.JSONWebKeySet
+	accessTokenPublicJWKs jwk.JWKSet
 }
 
 type UserinfoResponse struct {
@@ -27,19 +28,14 @@ func (r *UserInfoResource) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		ErrRequestUnauthorized.RespondJSON(w)
 		return
 	}
-	token, err := jwt.ParseSigned(bearer[1])
-	if err != nil {
-		ErrInvalidTokenFormat.RespondJSON(w)
-		return
-	}
-	var claims jwt.Claims
-
-	for _, key := range r.accessTokenPublicJWKs.Keys {
-		err = token.Claims(key, &claims)
-		if err == nil {
-			break
+	var claims jwt.ClaimSet
+	err := jwt.DecodeAndVerify(bearer[1], token, func(keyID string) (*ecdsa.PublicKey, error) {
+		pubKey, err := r.accessTokenPublicJWKs.Get(keyID)
+		if err != nil {
+			return nil, err
 		}
-	}
+		return pubKey.GetPublicKey()
+	})
 	if err != nil {
 		ErrTokenSignatureMismatch.RespondJSON(w)
 		return
