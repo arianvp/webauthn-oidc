@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"cloud.google.com/go/firestore"
-	scsfs "github.com/alexedwards/scs/firestore"
 	"github.com/alexedwards/scs/v2"
+	scsfs "github.com/arianvp/webauthn-oidc/firestore"
 	"github.com/arianvp/webauthn-oidc/jwk"
 )
 

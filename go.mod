@@ -7,6 +7,8 @@ replace github.com/duo-labs/webauthn => github.com/arianvp/webauthn v0.0.0-20210
 require (
 	github.com/duo-labs/webauthn v0.0.0-20210727191636-9f1b88ef44cc
 	github.com/pkg/errors v0.9.1
+	google.golang.org/api v0.60.0
+	google.golang.org/grpc v1.42.0
 )
 
 require (
@@ -27,16 +29,13 @@ require (
 	golang.org/x/sys v0.0.0-20211117180635-dee7805ff2e1 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
-	google.golang.org/api v0.60.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20211118181313-81c1377c94b1 // indirect
-	google.golang.org/grpc v1.42.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 )
 
 require (
 	cloud.google.com/go/firestore v1.6.1
-	github.com/alexedwards/scs/firestore v0.0.0-20220528130143-d93ace5be94b
 	github.com/alexedwards/scs/v2 v2.5.0
 	github.com/cloudflare/cfssl v0.0.0-20190726000631-633726f6bcb7 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
