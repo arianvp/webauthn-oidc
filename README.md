@@ -1,6 +1,6 @@
 # Webauthn-oidc
 
-!! This is probably full of game-breaking bugs !!
+!! This is probably full of game-breaking bugs   !!
 
 
 [![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/arianvp/webauthn-oidc)
@@ -15,6 +15,7 @@ certificate that your hardware token provides on signup. This means that we don'
 
 No secrets are shared anywhere either. We implement PKCE for peforming the
 challenge between client and server.
+
 
 ## Demo
 In this demo you'll be able to authenticate to a local kubernetes kind cluster.
