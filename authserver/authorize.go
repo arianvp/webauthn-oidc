@@ -3,7 +3,6 @@ package authserver
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -11,17 +10,17 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/alexedwards/scs/v2"
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/webauthn"
-	"github.com/gorilla/sessions"
 )
 
 type AuthorizeResource struct {
 	rpID   string
 	origin string
 
-	sessionStore sessions.Store
-	codeCache    *codeCache
+	sessionManager *scs.SessionManager
+	codeCache      *codeCache
 }
 
 type AuthorizeRequest struct {
@@ -60,18 +59,13 @@ func AuthorizeRequestFromValues(values url.Values) AuthorizeRequest {
 	}
 }
 
-func BeginAuthenticate(w http.ResponseWriter, req *http.Request, session *sessions.Session, authorizeRequest AuthorizeRequest, redirectURI *url.URL, query url.Values) {
+func (res *AuthorizeResource) BeginAuthenticate(w http.ResponseWriter, req *http.Request, authorizeRequest AuthorizeRequest, redirectURI *url.URL, query url.Values) {
 	challenge, err := protocol.CreateChallenge()
 	if err != nil {
 		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 		return
 	}
-
-	session.Values["challenge"] = challenge.String()
-	if err := session.Save(req, w); err != nil {
-		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-		return
-	}
+	res.sessionManager.Put(req.Context(), "challenge", challenge.String())
 
 	template := template.New("authorize.html")
 	template, err = template.ParseFS(content, "authorize.html")
@@ -186,10 +180,6 @@ func (server *AuthorizeResource) ServeHTTP(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	loginSession, err := server.sessionStore.Get(req, "loginSession")
-	if err != nil {
-		log.Println(err.Error())
-	}
 	var maxAge int64
 	if authorizeRequest.MaxAge != "" {
 		// TODO push parsing logic to the FromValues function
@@ -198,25 +188,16 @@ func (server *AuthorizeResource) ServeHTTP(w http.ResponseWriter, req *http.Requ
 			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 			return
 		}
-		loginSession.Options.MaxAge = int(maxAge)
 	}
-	loginSession.Options.SameSite = http.SameSiteLaxMode
-	challengeSession, err := server.sessionStore.Get(req, "challengeSession")
-	challengeSession.Options.SameSite = http.SameSiteStrictMode
-	challengeSession.Options.MaxAge = 0
 
 	var credential *webauthn.Credential = new(webauthn.Credential)
-	rawCredential, ok := loginSession.Values["credential"].([]byte)
-	if !ok {
-		credential = nil
-	} else {
-		if err := json.Unmarshal(rawCredential, credential); err != nil {
-			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-			return
-		}
+	rawCredential := server.sessionManager.GetBytes(req.Context(), "credential")
+	if err := json.Unmarshal(rawCredential, credential); err != nil {
+		ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+		return
 	}
 
-	authTime, _ := loginSession.Values["auth_time"].(int64)
+	authTime := server.sessionManager.GetInt64(req.Context(), "auth_time")
 	now := time.Now().Unix()
 
 	// Expired
@@ -234,13 +215,15 @@ func (server *AuthorizeResource) ServeHTTP(w http.ResponseWriter, req *http.Requ
 	}
 
 	if credential == nil {
+		// avoid session fixation
+		server.sessionManager.RenewToken(req.Context())
 		switch req.Method {
 		case http.MethodGet:
-			BeginAuthenticate(w, req, challengeSession, authorizeRequest, redirectURI, query)
+			server.BeginAuthenticate(w, req, authorizeRequest, redirectURI, query)
 			return
 		case http.MethodPost:
-			challenge, ok := challengeSession.Values["challenge"].(string)
-			if !ok {
+			challenge := server.sessionManager.PopString(req.Context(), "challenge")
+			if challenge == "" {
 				ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 				return
 			}
@@ -250,23 +233,17 @@ func (server *AuthorizeResource) ServeHTTP(w http.ResponseWriter, req *http.Requ
 				oauthError.RespondRedirect(w, redirectURI, query)
 				return
 			}
-			loginSession.Values["credential"], err = json.Marshal(credential)
-			authTime = time.Now().Unix()
-			loginSession.Values["auth_time"] = authTime
-
+			credentialBytes, err := json.Marshal(credential)
 			if err != nil {
 				ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
 				return
 			}
+			server.sessionManager.Put(req.Context(), "credential", credentialBytes)
+			server.sessionManager.Put(req.Context(), "auth_time", authTime)
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-	}
-
-	if err := loginSession.Save(req, w); err != nil {
-		ErrServerError.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-		return
 	}
 
 	if authorizeRequest.CodeChallengeMethod != "" && authorizeRequest.CodeChallengeMethod != "S256" {
