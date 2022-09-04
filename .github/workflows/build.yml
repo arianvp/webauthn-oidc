@@ -3,15 +3,17 @@ on:
  push:
    branches: [master]
 jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: 'actions/checkout@v3'
   build:
     name: Build
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: cachix/install-nix-action@v14
+      - uses: cachix/install-nix-action@v17
         with:
-          install_url: https://nixos-nix-install-tests.cachix.org/serve/vij683ly7sl95nnhb67bdjjfabclr85m/install
-          install_options: '--tarball-url-prefix https://nixos-nix-install-tests.cachix.org/serve'
           extra_nix_config: |
             experimental-features = nix-command flakes
             access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
@@ -19,7 +21,6 @@ jobs:
         with:
           name: webauthn-oidc
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-
       - uses: actions/cache@v2
         id: nix-eval-cache
         with:
@@ -27,15 +28,15 @@ jobs:
           key: ${{ runner.os }}-${{ hashFiles('**/flake.nix') }}-${{ hashFiles('**/flake.lock') }}
       - name: Build app
         run: |
-          nix build -L .\?rev=$(git rev-parse HEAD)
+          nix build -L 
       - name: Build container
         run: |
-          nix build -L .\?rev=$(git rev-parse HEAD)#container
+          nix build -L .#container
 
       - name: Push container
         run: |
           revParse=$(git rev-parse HEAD)
-          imageTag="$(nix eval --raw .\?rev=$revParse#container.imageTag)"
+          imageTag="$(nix eval --raw .#container.imageTag)"
           skopeo copy --dest-creds "$DOCKER_LOGIN" docker-archive:./result "docker://quay.io/arianvp/webauthn-oidc:$imageTag"
 
           skopeo copy --dest-creds "$DOCKER_LOGIN" "docker://quay.io/arianvp/webauthn-oidc:"{"$imageTag","${{ github.sha }}"}
