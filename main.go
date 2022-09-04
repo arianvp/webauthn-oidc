@@ -43,6 +43,8 @@ func main() {
 	firestoreClient, err := firestore.NewClient(context.Background(), firestore.DetectProjectID)
 	if err != nil {
 		// If we cant detect firestore use in memory store
+		log.Print(err)
+		log.Print("Continuing with in memory store")
 		firestoreClient = nil
 	}
 
