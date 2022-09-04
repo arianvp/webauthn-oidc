@@ -13,11 +13,9 @@ func TestAllEndpointsReachable(t *testing.T) {
 	rpID := "localhost"
 	origin := "https://localhost:6443"
 	ecdsaKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	cookieKey := make([]byte, 64)
-	rand.Reader.Read(cookieKey)
 	clientSecretKey := make([]byte, 64)
 	rand.Reader.Read(clientSecretKey)
-	authserver := New(rpID, origin, ecdsaKey, [][]byte{cookieKey}, clientSecretKey)
+	authserver := New(rpID, origin, ecdsaKey, clientSecretKey, nil)
 
 	for _, path := range []string{openidConfigurationPath, oauthAuthorizationServerPath, register, authorize, token, userinfo, wellKnownJwks} {
 		t.Run(path, func(t *testing.T) {

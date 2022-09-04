@@ -5,8 +5,10 @@ import (
 	"embed"
 	"net/http"
 
+	"cloud.google.com/go/firestore"
+	"github.com/alexedwards/scs/v2"
+	scsfs "github.com/arianvp/webauthn-oidc/firestore"
 	"github.com/arianvp/webauthn-oidc/jwk"
-	"github.com/gorilla/sessions"
 )
 
 //go:embed *.html
@@ -28,14 +30,10 @@ type AuthorizationServer struct {
 }
 
 // TODO because we are dynamic we must support implict and code grant
-func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, cookieKeys [][]byte, clientSecretKey []byte) AuthorizationServer {
+func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, clientSecretKey []byte, firesstoreClient *firestore.Client) AuthorizationServer {
 	server := AuthorizationServer{}
 
 	codeCache := newCodeCache()
-
-	sessionStore := sessions.NewFilesystemStore("", cookieKeys...)
-	sessionStore.Options.HttpOnly = true
-	sessionStore.Options.Secure = true
 
 	publicJWKs := jwk.JWKSet{
 		Keys: []jwk.JWK{
@@ -44,6 +42,11 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, cookieKe
 	}
 
 	supportedAlgs := []string{"ES256"}
+
+	sessionManager := scs.New()
+	if firesstoreClient != nil {
+		sessionManager.Store = scsfs.New(firesstoreClient)
+	}
 
 	openidConfiguration := OpenidConfiguration{
 		Issuer:                            origin,
@@ -64,12 +67,12 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, cookieKe
 
 	server.Handle(openidConfigurationPath, &openidConfiguration)
 	server.Handle(oauthAuthorizationServerPath, &openidConfiguration)
-	server.Handle(authorize, &AuthorizeResource{
-		rpID:         rpID,
-		origin:       origin,
-		sessionStore: sessionStore,
-		codeCache:    codeCache,
-	})
+	server.Handle(authorize, sessionManager.LoadAndSave(&AuthorizeResource{
+		rpID:           rpID,
+		origin:         origin,
+		sessionManager: sessionManager,
+		codeCache:      codeCache,
+	}))
 	server.Handle(token, &TokenResource{
 		origin:          origin,
 		codeCache:       codeCache,

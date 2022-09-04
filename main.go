@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -8,6 +9,7 @@ import (
 	"log"
 	"net/http"
 
+	"cloud.google.com/go/firestore"
 	"github.com/arianvp/webauthn-oidc/authserver"
 )
 
@@ -38,7 +40,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	authserver := authserver.New(*rpID, *origin, ecdsaKey, [][]byte{cookieKey}, clientSecretKey)
+	firestoreClient, err := firestore.NewClient(context.Background(), firestore.DetectProjectID)
+	if err != nil {
+		// If we cant detect firestore use in memory store
+		log.Print(err)
+		log.Print("Continuing with in memory store")
+		firestoreClient = nil
+	}
+
+	authserver := authserver.New(*rpID, *origin, ecdsaKey, clientSecretKey, firestoreClient)
 	if err != nil {
 		log.Fatal(err)
 	}
