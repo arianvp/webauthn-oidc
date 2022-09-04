@@ -5,6 +5,8 @@ import (
 	"embed"
 	"net/http"
 
+	"cloud.google.com/go/firestore"
+	scsfs "github.com/alexedwards/scs/firestore"
 	"github.com/alexedwards/scs/v2"
 	"github.com/arianvp/webauthn-oidc/jwk"
 )
@@ -28,7 +30,7 @@ type AuthorizationServer struct {
 }
 
 // TODO because we are dynamic we must support implict and code grant
-func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, clientSecretKey []byte) AuthorizationServer {
+func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, clientSecretKey []byte, firesstoreClient *firestore.Client) AuthorizationServer {
 	server := AuthorizationServer{}
 
 	codeCache := newCodeCache()
@@ -42,6 +44,9 @@ func New(rpID string, origin string, privateECDSAKey *ecdsa.PrivateKey, clientSe
 	supportedAlgs := []string{"ES256"}
 
 	sessionManager := scs.New()
+	if firesstoreClient != nil {
+		sessionManager.Store = scsfs.New(firesstoreClient)
+	}
 
 	openidConfiguration := OpenidConfiguration{
 		Issuer:                            origin,
