@@ -192,9 +192,11 @@ func (server *AuthorizeResource) ServeHTTP(w http.ResponseWriter, req *http.Requ
 
 	var credential *webauthn.Credential = new(webauthn.Credential)
 	rawCredential := server.sessionManager.GetBytes(req.Context(), "credential")
-	if err := json.Unmarshal(rawCredential, credential); err != nil {
-		ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
-		return
+	if rawCredential != nil {
+		if err := json.Unmarshal(rawCredential, credential); err != nil {
+			ErrInvalidRequest.WithDescription(err.Error()).RespondRedirect(w, redirectURI, query)
+			return
+		}
 	}
 
 	authTime := server.sessionManager.GetInt64(req.Context(), "auth_time")
