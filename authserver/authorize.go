@@ -159,7 +159,7 @@ func (server *AuthorizeResource) ServeHTTP(w http.ResponseWriter, req *http.Requ
 	query := redirectURI.Query()
 	query.Set("state", authorizeRequest.State)
 
-	expectedClientID := GenerateClientID(authorizeRequest.RedirectURI)
+	expectedClientID := authorizeRequest.RedirectURI
 	if authorizeRequest.ClientID != expectedClientID {
 		ErrInvalidRequest.WithDescription("redirect_uri does not match client_id.").RespondJSON(w)
 		return

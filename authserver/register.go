@@ -24,27 +24,18 @@ type RegistrationResponse struct {
 	ClientSecret string `json:"client_secret,omitempty"`
 }
 
-func GenerateClientIDRaw(redirectURI string) []byte {
-	h := sha256.New()
-	h.Write([]byte(redirectURI))
-	return h.Sum(nil)
-}
-func GenerateClientID(redirectURI string) string {
-	return base64.RawURLEncoding.EncodeToString(GenerateClientIDRaw(redirectURI))
-}
-
 func RegisterClient(clientSecretKey []byte, redirectURI string) (*RegistrationResponse, error) {
 	_, err := url.Parse(redirectURI)
 	if err != nil {
 		return nil, ErrInvalidRedirectURI.WithDescription(err.Error())
 
 	}
-	clientIDRaw := GenerateClientIDRaw(redirectURI)
+	clientIDRaw := []byte(redirectURI)
 	hmacer := hmac.New(sha256.New, clientSecretKey)
 	hmacer.Write(clientIDRaw)
 	clientSecretRaw := hmacer.Sum(nil)
 	return &RegistrationResponse{
-		ClientID:     base64.RawURLEncoding.EncodeToString(clientIDRaw),
+		ClientID:     redirectURI,
 		ClientSecret: base64.RawURLEncoding.EncodeToString(clientSecretRaw),
 	}, nil
 }
