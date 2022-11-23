@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/duo-labs/webauthn/webauthn"
+	"github.com/go-webauthn/webauthn/webauthn"
 )
 
 var (

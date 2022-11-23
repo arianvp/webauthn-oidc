@@ -12,7 +12,7 @@ import (
 
 	"github.com/arianvp/webauthn-oidc/jwt"
 	"github.com/arianvp/webauthn-oidc/oidc"
-	"github.com/duo-labs/webauthn/webauthn"
+	"github.com/go-webauthn/webauthn/webauthn"
 )
 
 type TokenResource struct {

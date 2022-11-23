@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/alexedwards/scs/v2"
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/webauthn"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/webauthn"
 )
 
 type AuthorizeResource struct {
@@ -130,7 +130,7 @@ func FinishAuthenticate(challenge string, authorizeRequest AuthorizeRequest, red
 	}
 
 	// TODO Relying Party ID
-	if err := assertionResponse.Verify(challenge, rpID, origin, false, credential.PublicKey); err != nil {
+	if err := assertionResponse.Verify(challenge, rpID, origin, "", false, credential.PublicKey); err != nil {
 		return nil, ErrRequestUnauthorized.WithDescription(err.Error())
 	}
 	return credential, nil

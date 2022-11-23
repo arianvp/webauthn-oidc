@@ -101,12 +101,12 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             <form name="loginform" id="loginform" method="POST">
               <fieldset>
                 <legend>{{ .ClientID }} wants us to authenticate you</legend>
+                <input type="text" name="name" placeholder="name">
+                <input type="text" name="username" placeholder="username" autocomplete="username webauthn">
                 <button id="register" type="button" class="btn btn-primary">Register credential</button>
                 <button id="login" type="submit" class="btn btn-primary">Authenticate</button>
-                <button id="forget" type="button" class="btn btn-secondary">Forget credential</button>
               </fieldset>
               <input type="hidden" name="assertion_response">
-              <input type="hidden" name="attestation_response">
             </form>
           </div>
         </div>
@@ -153,40 +153,19 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     }
     var alertPlaceholder = document.getElementById('alert-placeholder');
 
-    function alert(message, type) {
+    function alertMe(message, type) {
       var wrapper = document.createElement('div');
       wrapper.innerHTML = '<div class="alert alert-' + type + ' alert-dismissible" role="alert">' + message + '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
 
       alertPlaceholder.append(wrapper);
     }
 
-    function loadAttestationResponse(loginForm) {
-      const attestationResponse = localStorage.getItem(clientID + "/attestation_response");
-      loginForm.elements.namedItem("attestation_response").value = attestationResponse;
-      document.getElementById("register").hidden = attestationResponse != null;
-      document.getElementById("login").hidden = attestationResponse == null;
-      document.getElementById("forget").hidden = attestationResponse == null;
-    }
-
-    function setAttestationResponse(loginForm, attestationResponse) {
-      localStorage.setItem(clientID + "/attestation_response", attestationResponse);
-      loadAttestationResponse(loginForm);
-    }
-
-    function forgetAttestationResponse(loginForm) {
-      localStorage.removeItem(clientID + "/attestation_response")
-      loadAttestationResponse(loginForm);
-    }
-
     const challenge = "{{ .Challenge }}";
+    const userHandle = "{{ .UserID }}";
     const clientID = "{{ .ClientID }}";
 
     const loginForm = document.forms.namedItem("loginform");
-    loadAttestationResponse(loginForm);
 
-    document.getElementById("forget").onclick = async (e) => {
-      forgetAttestationResponse(loginForm);
-    };
     document.getElementById("register").onclick = async (e) => {
       e.preventDefault();
       try {
@@ -196,9 +175,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             rp: {
               name: "Webauthn OIDC",
             },
-            // There user id doesn't matter for our usecase however we could put some identifying information about the OIDC audience in here
             user: {
-              id: base64urlToBuffer("zczEAX64EcKL703DK8jkTaoX87gaKxQUwSOCdFIHbc4"), // TODO more entropy
+              id: base64urlToBuffer(userHandle), 
               name: "Arian",
               displayName: "Arian"
             },
@@ -208,20 +186,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             }]
           }
         });
-        console.log(credential.id);
-        let attestationResponse = JSON.stringify({
-          id: credential.id,
-          rawId: bufferToBase64url(credential.rawId),
-          type: credential.type,
-          response: {
-            attestationObject: bufferToBase64url(credential.response.attestationObject),
-            clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
-          },
-        }, null, 2);
 
-        setAttestationResponse(loginForm, attestationResponse);
       } catch (e) {
-        alert("Error" , "danger")
+        alertMe(e, "danger")
       }
     };
 
@@ -230,10 +197,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       let params = {
         publicKey: {
           challenge: base64urlToBuffer(challenge),
-          allowCredentials: [{
-            type: "public-key",
-            id: base64urlToBuffer(JSON.parse(loginForm.elements["attestation_response"].value).id)
-          }]
         }
       };
       let credential = await navigator.credentials.get(params);
@@ -245,6 +208,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
           signature: bufferToBase64url(credential.response.signature),
           clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
           authenticatorData: bufferToBase64url(credential.response.authenticatorData),
+          userHandle: bufferToBase64url(credential.response.userHandle),
         },
       });
       e.target.elements["assertion_response"].value = assertionResponse;

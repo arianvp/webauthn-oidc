@@ -8,6 +8,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"fmt"
 
 	"cloud.google.com/go/firestore"
 	"github.com/arianvp/webauthn-oidc/authserver"
@@ -15,7 +16,6 @@ import (
 
 var (
 	rpID     = flag.String("relying-party-id", "localhost", "Relying Party ID")
-	origin   = flag.String("origin", "https://localhost:8443", "Origin")
 	port     = flag.String("port", "8443", "Port number")
 	certFile = flag.String("cert-file", "localhost.pem", "Certificate file")
 	keyFile  = flag.String("key-file", "localhost-key.pem", "Key file")
@@ -48,10 +48,14 @@ func main() {
 		firestoreClient = nil
 	}
 
-	authserver := authserver.New(*rpID, *origin, ecdsaKey, clientSecretKey, firestoreClient)
-	if err != nil {
-		log.Fatal(err)
+	prefix := "https"
+	if *noTLS {
+		prefix = "http"
 	}
+
+	origin := fmt.Sprintf("%s://%s:%d", prefix, *rpID, *port)
+
+	authserver := authserver.New(*rpID, origin, ecdsaKey, clientSecretKey, firestoreClient)
 
 	if *noTLS {
 		log.Fatal(http.ListenAndServe("[::]:"+*port, &authserver))
